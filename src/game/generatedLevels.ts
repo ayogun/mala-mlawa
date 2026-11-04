@@ -1,10 +1,11 @@
-import { LEVELS, makeLevel, type BoardCell, type Level } from './levels';
+import { BRIDGE_LEVELS, LEVELS, makeLevel, type BoardCell, type Level } from './levels';
 import { isSupported, occupiedCells, roll, type BlockPosition, type Direction } from './logic';
 
 const WIDTH = 10;
 const HEIGHT = 9;
 const MINIMUM_MOVES = 18;
 const MAX_ATTEMPTS = 120;
+const BRIDGE_INTERVAL = 5;
 const DIRECTIONS: readonly Direction[] = ['up', 'right', 'down', 'left'];
 const LEVEL_NAMES = [
   'Śnieżny szlak', 'Lodowa wyprawa', 'Zimowy labirynt', 'Leśne zakręty',
@@ -103,8 +104,14 @@ function transformRows(rows: readonly string[], random: Random): string[] {
   return tiles.map((row) => row.join(''));
 }
 
+function bridgeTemplate(index: number): Level | undefined {
+  const offset = index - LEVELS.length;
+  if (offset < 0 || offset % BRIDGE_INTERVAL !== 0) return undefined;
+  return BRIDGE_LEVELS[Math.floor(offset / BRIDGE_INTERVAL) % BRIDGE_LEVELS.length];
+}
+
 export function getLevelName(index: number): string {
-  return LEVELS[index]?.name ?? LEVEL_NAMES[(index - LEVELS.length) % LEVEL_NAMES.length];
+  return LEVELS[index]?.name ?? bridgeTemplate(index)?.name ?? LEVEL_NAMES[(index - LEVELS.length) % LEVEL_NAMES.length];
 }
 
 export function getLevel(index: number): Level {
@@ -112,6 +119,8 @@ export function getLevel(index: number): Level {
   if (index < LEVELS.length) return LEVELS[index];
 
   const random = seededRandom(Math.imul(index + 1, 0x9e3779b9));
+  const bridge = bridgeTemplate(index);
+  if (bridge) return makeLevel(bridge.name, transformRows(bridge.rows, random));
   const targetMoves = 20 + Math.min(2, Math.floor((index - LEVELS.length) / 10));
   let best: Candidate | null = null;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {

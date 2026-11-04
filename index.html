@@ -12,6 +12,7 @@
     <div id="app">
       <div id="stage" aria-label="Interaktywna mapa 3D Mławy"></div>
       <div id="markers"></div>
+      <div id="advent-map-layer"></div>
       <div id="fox-map-layer">
         <button id="fox-map-scene" class="fox-map-scene" type="button" aria-haspopup="dialog" aria-controls="fox-game" aria-label="Lisek czeka w leśnej klatce. Otwórz grę i pomóż go uratować." hidden>
           <svg viewBox="0 0 240 200" aria-hidden="true">
@@ -124,6 +125,11 @@
         </button>
       </nav>
 
+      <button id="btn-advent" class="advent-trigger" type="button" aria-controls="advent-calendar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-3.1a3.1 3.1 0 0 0-5-3.4A3.1 3.1 0 0 0 7.1 7H4v5h1v9h14v-9h1zM14 4.7A1.4 1.4 0 1 1 15.4 7H13c.3-1 .6-1.7 1-2.3zM8.6 4.7C9.4 4.7 10 5.5 10.6 7H8.5a1.4 1.4 0 0 1 .1-2.3zM6 9h5v2H6zm1 4h4v6H7zm10 6h-4v-6h4zm1-8h-5V9h5z"/></svg>
+        <span><small>LOKALNE PREZENTY</small><strong>Kalendarz adwentowy</strong></span>
+      </button>
+
       <nav class="tools tools-map" aria-label="Sterowanie mapą">
         <button id="btn-zoom-in" title="Przybliż (+)" aria-label="Przybliż">+</button>
         <button id="btn-zoom-out" title="Oddal (−)" aria-label="Oddal">−</button>
@@ -141,8 +147,20 @@
       </aside>
 
       <aside id="panel" class="sheet" hidden>
-        <div class="sheet-head"><div><span class="eyebrow">MAŁA MŁAWA / MIEJSCE</span><strong id="panel-title"></strong></div><button class="close" aria-label="Zamknij szczegóły">×</button></div>
+        <div class="sheet-head"><div><span id="panel-eyebrow" class="eyebrow">MAŁA MŁAWA / MIEJSCE</span><strong id="panel-title" role="heading" aria-level="2" tabindex="-1"></strong></div><button class="close" aria-label="Zamknij szczegóły">×</button></div>
         <div id="panel-body"></div>
+      </aside>
+
+      <aside id="advent-calendar" class="sheet" aria-labelledby="advent-title" hidden>
+        <div class="sheet-head">
+          <div><span id="advent-subtitle" class="eyebrow">24 DNI / LOKALNE NIESPODZIANKI</span><strong id="advent-title" role="heading" aria-level="2" tabindex="-1">Kalendarz adwentowy</strong></div>
+          <button class="close" type="button" aria-label="Zamknij kalendarz">×</button>
+        </div>
+        <p id="advent-intro" class="advent-intro"></p>
+        <p id="advent-notice" class="advent-notice"></p>
+        <button id="advent-preview" class="advent-preview" type="button" aria-pressed="false"><span><strong>Zobacz przykładowe dni</strong><small>Podgląd — bez aktywnych rabatów</small></span><span aria-hidden="true">↗</span></button>
+        <div id="advent-grid" class="advent-grid" role="group" aria-label="Dni kalendarza adwentowego"></div>
+        <p class="advent-legend"><span aria-hidden="true">★</span> Złote dni: Hi Girls, nasz główny sponsor</p>
       </aside>
 
       <aside id="settings" class="sheet" hidden>
@@ -193,7 +211,21 @@
               <h2 id="fox-game-title">Droga do liska<span aria-hidden="true"> ✳</span></h2>
               <p id="fox-game-intro">Przetocz prezent przez zimowe plansze i pomóż uwolnić liska.</p>
             </div>
-            <button id="fox-close" class="fox-close" type="button" aria-label="Zamknij grę">×</button>
+            <div class="fox-header-actions">
+              <button id="fox-ranking-open" class="fox-ranking-open" type="button" aria-label="Otwórz ranking" aria-haspopup="dialog" aria-controls="fox-leaderboard" title="Ranking">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v3h3v2c0 3-2 5-5 5a5 5 0 0 1-2 1.5V18h4v3H7v-3h4v-3.5A5 5 0 0 1 9 13c-3 0-5-2-5-5V6h3zm0 5H6c0 1.4.7 2.4 2 2.8A8 8 0 0 1 7 8zm10 0a8 8 0 0 1-1 2.8c1.3-.4 2-1.4 2-2.8z"/></svg>
+                <span>Ranking</span>
+              </button>
+              <details id="fox-help" class="fox-help">
+                <summary aria-label="Jak grać?" title="Jak grać?">?</summary>
+                <div class="fox-help-card">
+                  <strong>Jak grać?</strong>
+                  <p>Przesuwaj prezent i postaw go pionowo na łapce.</p>
+                  <p>Żółty przycisk zmienia most, gdy prezent stoi na nim pionowo. Zejdź i wróć, aby nacisnąć go ponownie.</p>
+                </div>
+              </details>
+              <button id="fox-close" class="fox-close" type="button" aria-label="Zamknij grę">×</button>
+            </div>
           </header>
 
           <div class="fox-layout">
@@ -202,6 +234,7 @@
                 <div><span class="fox-tiny">PLANSZA <span id="fox-level-number">01</span> / ∞</span><strong id="fox-level-name"></strong></div>
                 <div class="fox-moves"><span class="fox-tiny">RUCHY</span><strong id="fox-moves">0</strong></div>
               </div>
+              <p id="fox-tip" class="fox-tip">Postaw prezent pionowo na łapce.</p>
 
               <div class="fox-board-wrap">
                 <svg id="fox-board" viewBox="0 0 720 510" role="img" aria-label="Izometryczna plansza. Przetocz prezent na pole z łapką."></svg>
@@ -213,7 +246,10 @@
                     <div class="fox-result-actions">
                       <button id="fox-result-primary" type="button"></button>
                       <button id="fox-result-secondary" type="button"></button>
+                      <button id="fox-result-share" type="button" aria-label="Udostępnij wynik jako obrazek" hidden disabled>↗ Udostępnij</button>
+                      <button id="fox-result-download" type="button" aria-label="Pobierz obrazek z wynikiem" hidden disabled>↓ Pobierz</button>
                     </div>
+                    <p id="fox-share-status" class="fox-share-status" role="status" aria-live="polite"></p>
                   </div>
                 </div>
                 <span class="fox-swipe-hint" aria-hidden="true">PRZESUŃ PALCEM, ABY ZAGRAĆ</span>
@@ -266,7 +302,15 @@
                 </ol>
               </div>
               <div class="fox-rescue">
-                <div class="fox-rescue-heading"><span>WSPÓLNA MISJA RATUNKOWA</span><strong id="fox-rescue-percent">—</strong></div>
+                <div class="fox-rescue-heading">
+                  <span><svg class="fox-rescue-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 3 9 6h6l6-3-1 11c-.4 3.8-3.1 6-8 8-4.9-2-7.6-4.2-8-8z" fill="#d9814d"/>
+                    <path d="M4.5 12c2 .2 3.3 1.2 4.8 2.8L12 12l2.7 2.8c1.5-1.6 2.8-2.6 4.8-2.8-.2 4.5-2.7 7-7.5 9-4.8-2-7.3-4.5-7.5-9z" fill="#f9ebd7"/>
+                    <circle cx="8" cy="11" r="1" fill="#34453f"/><circle cx="16" cy="11" r="1" fill="#34453f"/>
+                    <path d="m10.5 16 1.5 1.3 1.5-1.3-1.5-.8z" fill="#34453f"/>
+                  </svg>RATUJEMY LISKA</span>
+                  <strong id="fox-rescue-percent">—</strong>
+                </div>
                 <div id="fox-rescue-progress" class="fox-meter" role="progressbar" aria-label="Wspólny postęp w ratowaniu liska" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Wczytywanie wspólnego postępu"><span id="fox-rescue-progress-fill"></span></div>
                 <p id="fox-rescue-count">Łączymy z misją ratunkową…</p>
               </div>
@@ -281,6 +325,36 @@
               </div>
             </aside>
           </div>
+        </div>
+      </dialog>
+
+      <dialog id="fox-leaderboard" class="fox-leaderboard" aria-labelledby="fox-leaderboard-title">
+        <div class="fox-leaderboard-frame">
+          <header class="fox-leaderboard-header">
+            <div><span class="fox-leaderboard-kicker">DROGA DO LISKA</span><h2 id="fox-leaderboard-title">Ranking misji <span aria-hidden="true">✦</span></h2></div>
+            <button id="fox-ranking-close" type="button" aria-label="Zamknij ranking">×</button>
+          </header>
+          <p class="fox-leaderboard-rules">Więcej plansz wygrywa. Przy remisie — mniejsza suma najlepszych ruchów.</p>
+          <section aria-label="Wyniki graczy" aria-busy="true" id="fox-ranking-results">
+            <p id="fox-ranking-message" class="fox-ranking-message" role="status" aria-live="polite">Łączymy z rankingiem…</p>
+            <div id="fox-ranking-table" hidden>
+              <div class="fox-ranking-columns" aria-hidden="true"><span>#</span><span>GRACZ</span><span>PLANSZE</span><span>RUCHY</span></div>
+              <ol id="fox-ranking-list" class="fox-ranking-list" aria-label="Ranking graczy"></ol>
+              <ol id="fox-ranking-own" class="fox-ranking-list fox-ranking-own" aria-label="Twoje miejsce w rankingu" hidden></ol>
+            </div>
+            <button id="fox-ranking-retry" class="fox-ranking-retry" type="button" hidden>Spróbuj ponownie</button>
+          </section>
+          <form id="fox-ranking-form" class="fox-ranking-form" hidden>
+            <label for="fox-ranking-nickname">Twój nick</label>
+            <div class="fox-ranking-input-row">
+              <input id="fox-ranking-nickname" name="nickname" type="text" minlength="2" maxlength="24" placeholder="Wpisz nick" autocomplete="off" required>
+              <button id="fox-ranking-save" type="submit">Dołącz</button>
+            </div>
+            <p>Nick i wynik będą publiczne. Nie podawaj danych osobowych. Nick usuniesz w tej przeglądarce.</p>
+            <button id="fox-ranking-remove" class="fox-ranking-remove" type="button" hidden>Usuń mnie z rankingu</button>
+            <p id="fox-ranking-form-status" class="fox-ranking-form-status" role="status" aria-live="polite"></p>
+          </form>
+          <p class="fox-ranking-disclaimer">Ranking zabawowy · wyniki nieweryfikowane</p>
         </div>
       </dialog>
 

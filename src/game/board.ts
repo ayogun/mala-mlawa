@@ -1,6 +1,6 @@
 import { Quaternion, Vector3 } from 'three';
-import { hasTile, type Level } from './levels';
-import { DIRECTION_DELTAS, type BlockPosition, type Direction } from './logic';
+import { hasTile, type BoardCell, type Level } from './levels';
+import { DIRECTION_DELTAS, occupiedCells, type BlockPosition, type Direction } from './logic';
 
 const VIEW_WIDTH = 720;
 const VIEW_HEIGHT = 510;
@@ -16,6 +16,11 @@ interface Point2D {
 interface Turn {
   pivot: Vector3;
   rotation: Quaternion;
+}
+
+export interface FallEdge {
+  pivot: Vector3;
+  direction: Direction;
 }
 
 type FaceAxis = 'column' | 'height' | 'row';
@@ -59,6 +64,28 @@ export function turnPivot(position: BlockPosition, direction: Direction): Vector
   );
 }
 
+export function fallEdge(level: Level, before: BlockPosition, destination: BlockPosition, direction: Direction, bridgesOpen: boolean): FallEdge {
+  const cells = occupiedCells(destination);
+  const supported = cells.filter((cell) => hasTile(level, cell.column, cell.row, bridgesOpen));
+  if (cells.length === 2 && supported.length === 1) {
+    const support = supported[0];
+    const missing = cells.find((cell) => cell.column !== support.column || cell.row !== support.row)!;
+    const center = blockCenter(destination);
+    const fallDirection: Direction = missing.column > support.column ? 'down'
+      : missing.column < support.column ? 'up'
+        : missing.row > support.row ? 'left' : 'right';
+    return {
+      direction: fallDirection,
+      pivot: new Vector3(
+        missing.column === support.column ? center.x : support.column + (missing.column > support.column ? 1 : 0),
+        0,
+        missing.row === support.row ? center.z : support.row + (missing.row > support.row ? 1 : 0),
+      ),
+    };
+  }
+  return { direction, pivot: turnPivot(before, direction) };
+}
+
 function surfacePoint(face: Face, across: number, along: number): Vector3 {
   if (face.axis === 'column') return new Vector3(face.sign * HALF_WIDTH, along, across);
   if (face.axis === 'height') return new Vector3(across, face.sign * HALF_HEIGHT, along);
@@ -90,6 +117,12 @@ export class BoardRenderer {
   private scale = 1;
   private originHorizontal = 0;
   private originVertical = 0;
+  private level!: Level;
+  private tiles: BoardCell[] = [];
+  private tileLayer!: SVGGElement;
+  private goalTile!: SVGGElement;
+  private goalPress = 0;
+  private bridgesOpen = false;
   private shadow: SVGGElement;
   private block: SVGGElement;
 
@@ -100,6 +133,9 @@ export class BoardRenderer {
   }
 
   setLevel(level: Level): void {
+    this.level = level;
+    this.bridgesOpen = false;
+    this.goalPress = 0;
     const tiles: { column: number; row: number }[] = [];
     level.rows.forEach((line, row) => {
       [...line].forEach((tile, column) => {
@@ -122,6 +158,7 @@ export class BoardRenderer {
     this.originVertical = (VIEW_HEIGHT - (maxVertical - minVertical) * this.scale) / 2 - minVertical * this.scale;
 
     tiles.sort((first, second) => first.column + first.row - second.column - second.row);
+    this.tiles = tiles;
 
     const snow = [
       [48, 62, 2], [110, 117, 2.5], [186, 57, 2], [285, 96, 1.5], [407, 48, 2],
@@ -142,26 +179,43 @@ export class BoardRenderer {
       <ellipse cx="360" cy="285" rx="330" ry="205" fill="url(#fox-glow)"/>
       <path d="M0 413 Q106 375 209 417 T425 420 T720 408 V510 H0Z" fill="#9abeb4" opacity=".055"/>
       <g fill="#d5ebe1" opacity=".55">${snow}</g>
-      <g>${tiles.map(({ column, row }) => this.tile(level, column, row)).join('')}</g>
+      <g class="fox-board-tiles">${tiles.map(({ column, row }) => this.tile(level, column, row)).join('')}</g>
     `;
+    this.tileLayer = this.svg.querySelector<SVGGElement>('.fox-board-tiles')!;
+    this.goalTile = this.tileLayer.querySelector<SVGGElement>('.fox-goal-tile')!;
     this.shadow = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     this.block = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     this.svg.append(this.shadow, this.block);
   }
 
-  render(position: BlockPosition, rotation: Quaternion, turn?: Turn, drop = 0): void {
+  setBridgesOpen(open: boolean): void {
+    if (open === this.bridgesOpen) return;
+    this.bridgesOpen = open;
+    this.tileLayer.innerHTML = this.tiles.map(({ column, row }) => this.tile(this.level, column, row)).join('');
+    this.goalTile = this.tileLayer.querySelector<SVGGElement>('.fox-goal-tile')!;
+    this.setGoalPress(this.goalPress);
+  }
+
+  setGoalPress(press: number): void {
+    this.goalPress = Math.max(0, press);
+    this.goalTile.setAttribute('transform', `translate(0 ${(this.goalPress * this.scale).toFixed(2)})`);
+  }
+
+  render(position: BlockPosition, rotation: Quaternion, turn?: Turn, drop = 0, lift = 0): void {
     const center = blockCenter(position);
     const transform = (point: Vector3): Vector3 => {
       const world = point.clone().applyQuaternion(rotation).add(center);
       if (turn) world.sub(turn.pivot).applyQuaternion(turn.rotation).add(turn.pivot);
-      world.y -= drop;
+      world.y += lift - drop;
       return world;
     };
     const shadowCenter = transform(new Vector3());
     shadowCenter.y = 0.01;
     const shadow = this.project(shadowCenter);
-    const opacity = Math.max(0, 0.23 * (1 - drop / 3));
-    this.shadow.innerHTML = `<ellipse cx="${shadow.horizontal.toFixed(2)}" cy="${shadow.vertical.toFixed(2)}" rx="${(this.scale * 0.57).toFixed(2)}" ry="${(this.scale * 0.27).toFixed(2)}" fill="#203c3c" opacity="${opacity.toFixed(2)}"/>`;
+    const height = Math.max(0, lift);
+    const shadowScale = Math.max(0.7, 1 - height * 0.25);
+    const opacity = Math.max(0, 0.23 * (1 - drop / 3) * (1 - height * 0.6));
+    this.shadow.innerHTML = `<ellipse cx="${shadow.horizontal.toFixed(2)}" cy="${shadow.vertical.toFixed(2)}" rx="${(this.scale * 0.57 * shadowScale).toFixed(2)}" ry="${(this.scale * 0.27 * shadowScale).toFixed(2)}" fill="#203c3c" opacity="${opacity.toFixed(2)}"/>`;
 
     const visibleFaces = FACES.map((face) => {
       const normal = faceNormal(face).applyQuaternion(rotation);
@@ -201,13 +255,31 @@ export class BoardRenderer {
   private tile(level: Level, column: number, row: number): string {
     const thickness = -0.18;
     const surface = [new Vector3(column, 0, row), new Vector3(column + 1, 0, row), new Vector3(column + 1, 0, row + 1), new Vector3(column, 0, row + 1)];
+    const bridge = level.rows[row]?.[column] === 'B';
+    if (bridge && !this.bridgesOpen) {
+      return `<g class="fox-bridge-closed"><polygon points="${this.points(surface)}" fill="#d5b879" fill-opacity=".08" stroke="#e9bd73" stroke-width="2" stroke-dasharray="5 5"/>
+        <polyline points="${this.points([surface[0], surface[2]])}" fill="none" stroke="#e9bd73" stroke-opacity=".4" stroke-width="1.5"/></g>`;
+    }
     const columnSide = [surface[1], surface[2], new Vector3(column + 1, thickness, row + 1), new Vector3(column + 1, thickness, row)];
     const rowSide = [surface[2], surface[3], new Vector3(column, thickness, row + 1), new Vector3(column + 1, thickness, row + 1)];
     const shades = ['#d6e5de', '#e1ede5', '#ccdfd9', '#dceae3'];
-    const shade = shades[(column * 7 + row * 11) % shades.length];
-    const sideColumn = !hasTile(level, column + 1, row) ? `<polygon points="${this.points(columnSide)}" fill="#76989a" stroke="#67888b" stroke-width="1.3"/>` : '';
-    const sideRow = !hasTile(level, column, row + 1) ? `<polygon points="${this.points(rowSide)}" fill="#87a9a7" stroke="#71928f" stroke-width="1.3"/>` : '';
+    const shade = bridge ? '#d9a369' : shades[(column * 7 + row * 11) % shades.length];
+    const sideColumn = !hasTile(level, column + 1, row, this.bridgesOpen) ? `<polygon points="${this.points(columnSide)}" fill="${bridge ? '#986447' : '#76989a'}" stroke="#67888b" stroke-width="1.3"/>` : '';
+    const sideRow = !hasTile(level, column, row + 1, this.bridgesOpen) ? `<polygon points="${this.points(rowSide)}" fill="${bridge ? '#b77b50' : '#87a9a7'}" stroke="#71928f" stroke-width="1.3"/>` : '';
     let detail = '';
+
+    if (bridge) {
+      const seams = [0.33, 0.66].map((offset) => [
+        new Vector3(column + offset, 0.012, row + 0.05), new Vector3(column + offset, 0.012, row + 0.95),
+      ]);
+      detail = seams.map((seam) => `<polyline points="${this.points(seam)}" fill="none" stroke="#a36e48" stroke-width="2"/>`).join('');
+    } else if (level.rows[row]?.[column] === 'T') {
+      const center = this.project(new Vector3(column + 0.5, 0.025, row + 0.5));
+      const radius = this.scale * 0.31;
+      detail = `<g class="fox-switch"><ellipse cx="${center.horizontal.toFixed(2)}" cy="${(center.vertical + 2).toFixed(2)}" rx="${radius.toFixed(2)}" ry="${(radius * 0.54).toFixed(2)}" fill="#9a633c"/>
+        <ellipse cx="${center.horizontal.toFixed(2)}" cy="${(center.vertical - 1).toFixed(2)}" rx="${radius.toFixed(2)}" ry="${(radius * 0.54).toFixed(2)}" fill="#f2bd52" stroke="#fff0b5" stroke-width="2"/>
+        <circle cx="${center.horizontal.toFixed(2)}" cy="${(center.vertical - 1).toFixed(2)}" r="${(radius * 0.22).toFixed(2)}" fill="#fff4c9"/></g>`;
+    }
 
     if (level.goal.column === column && level.goal.row === row) {
       const inset = [new Vector3(column + 0.18, 0.012, row + 0.18), new Vector3(column + 0.82, 0.012, row + 0.18), new Vector3(column + 0.82, 0.012, row + 0.82), new Vector3(column + 0.18, 0.012, row + 0.82)];
@@ -219,6 +291,10 @@ export class BoardRenderer {
         </g>`;
     }
 
-    return `${sideColumn}${sideRow}<polygon points="${this.points(surface)}" fill="${shade}" stroke="#b2cbc4" stroke-width="1.1"/>${detail}`;
+    const tile = `${sideColumn}${sideRow}<polygon points="${this.points(surface)}" fill="${shade}" stroke="${bridge ? '#b78356' : '#b2cbc4'}" stroke-width="1.1"/>${detail}`;
+    if (level.goal.column === column && level.goal.row === row) {
+      return `<g class="fox-goal"><polygon points="${this.points(surface)}" fill="#78928a"/><g class="fox-goal-tile">${tile}</g></g>`;
+    }
+    return bridge ? `<g class="fox-bridge-open">${tile}</g>` : tile;
   }
 }

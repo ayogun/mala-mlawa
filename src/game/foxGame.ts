@@ -1,15 +1,17 @@
 import { Quaternion } from 'three';
-import { BoardRenderer, turnFor, turnPivot } from './board';
+import { BoardRenderer, fallEdge, turnFor, turnPivot, type FallEdge } from './board';
 import { createFoxCloud, type FoxCloud, type RescueProgress } from './foxCloud';
+import { FoxLeaderboard } from './foxLeaderboard';
 import { getLevel, getLevelName } from './generatedLevels';
-import { isGoal, isSupported, roll, startingPosition, type BlockPosition, type Direction } from './logic';
+import { isGoal, moveBlock, startingPosition, type BlockPosition, type Direction } from './logic';
+import { createScoreImage, downloadScoreImage, type ScoreImage } from './scoreShare';
 
 const STORAGE_KEY = 'mala-mlawa-fox-game-v2';
 const LEGACY_STORAGE_KEY = 'mala-mlawa-fox-game-v1';
 const LEVELS_PER_PAGE = 5;
 const RESCUE_REFRESH_INTERVAL = 60_000;
 
-type Phase = 'playing' | 'rolling' | 'falling' | 'failed' | 'won';
+type Phase = 'playing' | 'rolling' | 'falling' | 'celebrating' | 'failed' | 'won';
 type RescueStatus = 'loading' | 'ready' | 'offline';
 type SyncStatus = 'local' | 'syncing' | 'synced' | 'offline';
 
@@ -17,6 +19,7 @@ interface Snapshot {
   position: BlockPosition;
   rotation: Quaternion;
   moves: number;
+  bridgesOpen: boolean;
 }
 
 interface PointerStart {
@@ -33,6 +36,7 @@ export class FoxGame {
   private mapScene = element<HTMLButtonElement>('fox-map-scene');
   private lastOpener: HTMLButtonElement | null = null;
   private closeButton = element<HTMLButtonElement>('fox-close');
+  private help = element<HTMLDetailsElement>('fox-help');
   private svg = document.getElementById('fox-board') as unknown as SVGSVGElement;
   private result = element<HTMLDivElement>('fox-result');
   private resultIcon = element<HTMLSpanElement>('fox-result-icon');
@@ -40,6 +44,9 @@ export class FoxGame {
   private resultText = element<HTMLParagraphElement>('fox-result-text');
   private resultPrimary = element<HTMLButtonElement>('fox-result-primary');
   private resultSecondary = element<HTMLButtonElement>('fox-result-secondary');
+  private resultShare = element<HTMLButtonElement>('fox-result-share');
+  private resultDownload = element<HTMLButtonElement>('fox-result-download');
+  private shareStatus = element<HTMLParagraphElement>('fox-share-status');
   private undoButton = element<HTMLButtonElement>('fox-undo');
   private restartButton = element<HTMLButtonElement>('fox-restart');
   private previousLevelsButton = element<HTMLButtonElement>('fox-levels-previous');
@@ -52,11 +59,14 @@ export class FoxGame {
   private position = startingPosition(this.level);
   private rotation = new Quaternion();
   private moves = 0;
+  private bridgesOpen = false;
   private phase: Phase = 'playing';
   private history: Snapshot[] = [];
   private best = new Map<number, number>();
   private storageAvailable = true;
   private cloud: FoxCloud | null = null;
+  private cloudReady: Promise<FoxCloud | null>;
+  private leaderboard: FoxLeaderboard;
   private rescueProgress: RescueProgress | null = null;
   private rescueStatus: RescueStatus = 'loading';
   private syncStatus: SyncStatus = 'local';
@@ -66,6 +76,8 @@ export class FoxGame {
   private rescueRequest = 0;
   private animationFrame: number | null = null;
   private pointerStart: PointerStart | null = null;
+  private shareImage: ScoreImage | null = null;
+  private shareVersion = 0;
 
   constructor() {
     this.loadProgress();
@@ -85,6 +97,8 @@ export class FoxGame {
     this.dialog.addEventListener('keydown', (event) => this.onKeyDown(event));
     this.undoButton.addEventListener('click', () => this.undo());
     this.restartButton.addEventListener('click', () => this.startLevel(this.levelIndex));
+    this.resultShare.addEventListener('click', () => this.shareResult());
+    this.resultDownload.addEventListener('click', () => this.downloadResult());
     this.previousLevelsButton.addEventListener('click', () => this.changeLevelPage(-1));
     this.nextLevelsButton.addEventListener('click', () => this.changeLevelPage(1));
     this.dialog.querySelectorAll<HTMLButtonElement>('[data-fox-direction]').forEach((button) => {
@@ -103,7 +117,8 @@ export class FoxGame {
       this.updateHud();
     });
 
-    void this.connectCloud();
+    this.cloudReady = this.connectCloud();
+    this.leaderboard = new FoxLeaderboard(() => this.cloudReady);
   }
 
   get isOpen(): boolean {
@@ -121,11 +136,12 @@ export class FoxGame {
   }
 
   private onClose(): void {
-    if (this.phase === 'rolling' || this.phase === 'falling') {
+    if (this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'celebrating') {
       this.stopAnimation();
       this.restoreLastMove();
     }
     this.pointerStart = null;
+    this.help.open = false;
     (this.lastOpener && !this.lastOpener.hidden ? this.lastOpener : this.opener).focus();
   }
 
@@ -163,9 +179,11 @@ export class FoxGame {
     this.position = startingPosition(this.level);
     this.rotation = new Quaternion();
     this.moves = 0;
+    this.bridgesOpen = false;
     this.history = [];
     this.phase = 'playing';
     this.result.hidden = true;
+    this.hideShare();
     this.board.setLevel(this.level);
     this.board.render(this.position, this.rotation);
     this.updateHud();
@@ -175,8 +193,9 @@ export class FoxGame {
 
   private move(direction: Direction): void {
     if (this.phase !== 'playing') return;
-    const before: Snapshot = { position: { ...this.position }, rotation: this.rotation.clone(), moves: this.moves };
-    const destination = roll(before.position, direction);
+    const before: Snapshot = { position: { ...this.position }, rotation: this.rotation.clone(), moves: this.moves, bridgesOpen: this.bridgesOpen };
+    const outcome = moveBlock(this.level, before.position, direction, before.bridgesOpen);
+    const destination = outcome.position;
     const pivot = turnPivot(before.position, direction);
     this.history.push(before);
     this.moves += 1;
@@ -189,35 +208,56 @@ export class FoxGame {
     }, () => {
       this.position = destination;
       this.rotation = turnFor(direction, Math.PI / 2).multiply(before.rotation).normalize();
-      if (!isSupported(this.level, destination)) this.drop(false);
-      else if (isGoal(this.level, destination)) this.drop(true);
+      this.bridgesOpen = outcome.bridgesOpen;
+      if (outcome.switchPressed) this.board.setBridgesOpen(this.bridgesOpen);
+      if (!outcome.supported) this.drop(fallEdge(this.level, before.position, destination, direction, this.bridgesOpen));
+      else if (isGoal(this.level, destination)) this.celebrate();
       else {
         this.phase = 'playing';
         this.board.render(this.position, this.rotation);
         this.updateHud();
         const posture = this.position.axis === 'upright' ? 'stoi pionowo' : 'leży';
-        this.announce(`Ruch ${this.moves}. Prezent ${posture}, kolumna ${this.position.column + 1}, rząd ${this.position.row + 1}.`);
+        const bridge = outcome.switchPressed ? ` Most ${this.bridgesOpen ? 'otwarty' : 'zamknięty'}.` : '';
+        this.announce(`Ruch ${this.moves}. Prezent ${posture}, kolumna ${this.position.column + 1}, rząd ${this.position.row + 1}.${bridge}`);
       }
     });
   }
 
-  private drop(won: boolean): void {
+  private drop(edge: FallEdge): void {
     this.phase = 'falling';
     this.updateHud();
-    this.animate(400, (progress) => {
-      this.board.render(this.position, this.rotation, undefined, progress * progress * 3);
+    this.animate(560, (progress) => {
+      const tilt = progress * progress * Math.PI * 0.55;
+      const freeFall = Math.max(0, (progress - 0.35) / 0.65);
+      this.board.render(this.position, this.rotation, { pivot: edge.pivot, rotation: turnFor(edge.direction, tilt) }, freeFall * freeFall * 3);
     }, () => {
-      this.phase = won ? 'won' : 'failed';
-      if (won) this.completeLevel();
-      else this.showFailure();
+      this.phase = 'failed';
+      this.showFailure();
+      this.updateHud();
+    });
+  }
+
+  private celebrate(): void {
+    this.phase = 'celebrating';
+    this.updateHud();
+    this.animate(720, (progress) => {
+      const press = Math.sin(Math.min(progress / 0.58, 1) * Math.PI) * 0.13;
+      const liftProgress = Math.max(0, (progress - 0.22) / 0.78);
+      const lift = 0.8 * liftProgress * liftProgress * (3 - 2 * liftProgress);
+      this.board.setGoalPress(press);
+      this.board.render(this.position, this.rotation, undefined, 0, lift - press);
+    }, () => {
+      this.phase = 'won';
+      this.completeLevel();
       this.updateHud();
     });
   }
 
   private showFailure(): void {
+    this.hideShare();
     this.resultIcon.textContent = '↶';
     this.resultTitle.textContent = 'Ups, prezent spadł!';
-    this.resultText.textContent = 'Nic straconego. Cofnij ostatni ruch albo spróbuj od początku.';
+    this.resultText.textContent = 'Cofnij ruch albo zacznij od nowa.';
     this.resultPrimary.textContent = 'Cofnij ruch';
     this.resultSecondary.textContent = 'Od początku';
     this.resultPrimary.onclick = () => this.undo();
@@ -236,13 +276,14 @@ export class FoxGame {
     this.resultIcon.textContent = '✦';
     this.resultTitle.textContent = 'Udało się!';
     this.resultText.textContent = previousBest !== undefined
-      ? `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Powtórki nie zwiększają wspólnego postępu.`
-      : `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Po synchronizacji pomoże w ratowaniu liska!`;
+      ? `Ukończono w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}.`
+      : `Ukończono w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Pomagasz ratować liska!`;
 
     this.resultPrimary.textContent = 'Następna plansza';
     this.resultSecondary.textContent = 'Powtórz planszę';
     this.resultPrimary.onclick = () => this.startLevel(this.levelIndex + 1);
     this.resultSecondary.onclick = () => this.startLevel(this.levelIndex);
+    this.prepareShare();
     this.revealResult();
     this.announce(`${this.resultTitle.textContent} ${this.resultText.textContent}`);
   }
@@ -252,21 +293,97 @@ export class FoxGame {
     this.resultPrimary.focus({ preventScroll: true });
   }
 
+  private prepareShare(): void {
+    const version = ++this.shareVersion;
+    const level = this.levelIndex + 1;
+    const moves = this.moves;
+    this.shareImage = null;
+    this.resultShare.hidden = true;
+    this.resultShare.disabled = true;
+    this.resultDownload.hidden = false;
+    this.resultDownload.disabled = true;
+    this.shareStatus.textContent = 'Przygotowujemy obrazek…';
+    void createScoreImage(level, moves).then((image) => {
+      if (version !== this.shareVersion) return;
+      this.shareImage = image;
+      this.resultShare.disabled = false;
+      this.resultShare.hidden = !this.canShareImage(image);
+      this.resultDownload.disabled = false;
+      this.shareStatus.textContent = '';
+    }).catch((error: unknown) => {
+      if (version !== this.shareVersion) return;
+      this.shareStatus.textContent = 'Nie udało się przygotować obrazka.';
+      console.warn('Could not create score image:', error);
+    });
+  }
+
+  private hideShare(): void {
+    this.shareVersion += 1;
+    this.shareImage = null;
+    this.resultShare.hidden = true;
+    this.resultDownload.hidden = true;
+    this.shareStatus.textContent = '';
+  }
+
+  private canShareImage(image: ScoreImage): boolean {
+    try {
+      return !!image.file && typeof navigator.share === 'function' && typeof navigator.canShare === 'function'
+        && navigator.canShare({ files: [image.file], title: 'Droga do liska', text: image.text });
+    } catch {
+      return false;
+    }
+  }
+
+  private shareResult(): void {
+    const image = this.shareImage;
+    if (!image) return;
+    const version = this.shareVersion;
+    if (image.file && this.canShareImage(image)) {
+      try {
+        void navigator.share({ files: [image.file], title: 'Droga do liska', text: image.text }).catch((error: unknown) => {
+          const cancelled = error && typeof error === 'object' && 'name' in error && error.name === 'AbortError';
+          if (version !== this.shareVersion || cancelled) return;
+          this.shareStatus.textContent = 'Nie udało się udostępnić. Pobierz obrazek i dodaj go do posta.';
+        });
+        return;
+      } catch {
+        this.shareStatus.textContent = 'Nie udało się udostępnić. Pobierz obrazek i dodaj go do posta.';
+        return;
+      }
+    }
+    this.shareStatus.textContent = 'Udostępnianie jest niedostępne. Pobierz obrazek i dodaj go do posta.';
+  }
+
+  private downloadResult(): void {
+    const image = this.shareImage;
+    if (!image) return;
+    try {
+      downloadScoreImage(image);
+      this.shareStatus.textContent = 'Obrazek pobrany. Możesz dodać go do posta.';
+    } catch (error) {
+      this.shareStatus.textContent = 'Nie udało się pobrać obrazka. Spróbuj ponownie.';
+      console.warn('Could not download score image:', error);
+    }
+  }
+
   private undo(): void {
-    if (this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'won') return;
+    if (this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'celebrating' || this.phase === 'won') return;
     const focusWasInResult = this.result.contains(document.activeElement);
     this.restoreLastMove();
     if (focusWasInResult) this.focusDirections();
   }
 
   private restoreLastMove(): void {
+    this.board.setGoalPress(0);
     const snapshot = this.history.pop();
     if (!snapshot) return;
     this.position = snapshot.position;
     this.rotation = snapshot.rotation;
     this.moves = snapshot.moves;
+    this.bridgesOpen = snapshot.bridgesOpen;
     this.phase = 'playing';
     this.result.hidden = true;
+    this.board.setBridgesOpen(this.bridgesOpen);
     this.board.render(this.position, this.rotation);
     this.updateHud();
     this.announce('Ruch cofnięty. Spróbuj innej drogi.');
@@ -282,12 +399,12 @@ export class FoxGame {
     return completed;
   }
 
-  private async connectCloud(): Promise<void> {
+  private async connectCloud(): Promise<FoxCloud | null> {
     this.cloud = await createFoxCloud();
     if (!this.cloud) {
       this.rescueStatus = 'offline';
       this.updateHud();
-      return;
+      return null;
     }
     void this.refreshRescue();
     if (this.syncStarted) this.requestSync();
@@ -298,6 +415,7 @@ export class FoxGame {
     window.setInterval(() => {
       if (document.visibilityState === 'visible') this.refreshOnlineState();
     }, RESCUE_REFRESH_INTERVAL);
+    return this.cloud;
   }
 
   private refreshOnlineState(): void {
@@ -366,25 +484,39 @@ export class FoxGame {
     } finally {
       this.syncing = false;
       this.updateHud();
+      if (this.syncStatus === 'synced') this.leaderboard.refreshScores();
     }
   }
 
   private updateHud(): void {
     const completed = this.completedLevels();
+    const hasSwitch = this.level.rows.some((row) => row.includes('T'));
+    const introRow = this.levelIndex === 0 && this.position.row === this.level.start.row;
+    const introStart = introRow && this.position.axis === 'upright' && this.position.column === this.level.start.column;
+    const introMiddle = introRow && this.position.axis === 'column' && this.position.column === this.level.start.column + 1;
     const rescue = this.rescueProgress;
-    const progress = rescue ? Math.min(100, Math.floor(rescue.totalCompleted / rescue.goal * 100)) : null;
+    const progress = rescue ? Math.min(100, Math.floor(rescue.totalCompleted / rescue.goal * 1000) / 10) : null;
+    const progressLabel = progress === null ? '' : progress.toLocaleString('pl-PL', { maximumFractionDigits: 1 });
     const rescued = rescue !== null && rescue.totalCompleted >= rescue.goal;
     const progressText = rescue
-      ? `${progress} procent, wspólnie ukończono ${rescue.totalCompleted} z ${rescue.goal} plansz${this.rescueStatus === 'offline' ? ', ostatni znany wynik' : ''}`
+      ? `${progressLabel} procent, wspólnie ukończono ${rescue.totalCompleted} z ${rescue.goal} plansz${this.rescueStatus === 'offline' ? ', ostatni znany wynik' : ''}`
       : this.rescueStatus === 'loading' ? 'Wczytywanie wspólnego postępu' : 'Wspólny postęp jest niedostępny';
     element('fox-level-number').textContent = String(this.levelIndex + 1).padStart(2, '0');
     element('fox-level-name').textContent = this.level.name;
+    element('fox-tip').textContent = introStart ? 'Naciśnij ↘ dwa razy, by dojść do łapki.'
+      : introMiddle ? 'Świetnie! Naciśnij ↘ jeszcze raz.'
+        : this.levelIndex === 0 && this.phase === 'playing' ? 'Cofnij ↶, aby wrócić na ścieżkę.'
+          : hasSwitch ? 'Stań pionowo na przycisku, by zmienić most.' : 'Postaw prezent pionowo na łapce.';
+    this.dialog.querySelector<HTMLButtonElement>('[data-fox-direction="down"]')?.classList.toggle('is-intro-hint', introStart || introMiddle);
+    this.svg.setAttribute('aria-label', hasSwitch
+      ? `Plansza z przyciskiem. Most jest ${this.bridgesOpen ? 'otwarty' : 'zamknięty'}. Postaw prezent pionowo na przycisku, by zmienić most. Przetocz prezent na pole z łapką.`
+      : 'Izometryczna plansza. Przetocz prezent na pole z łapką.');
     element('fox-moves').textContent = String(this.moves);
     const record = this.best.get(this.levelIndex);
     element('fox-best').textContent = record === undefined ? 'GRAJ ILE CHCESZ' : `Twój rekord: ${record} ruchów`;
     element('fox-progress-count').textContent = String(completed);
-    element('fox-map-percent').textContent = progress === null ? '—' : `${progress}%`;
-    element('fox-rescue-percent').textContent = progress === null ? '—' : `${progress}%`;
+    element('fox-map-percent').textContent = progress === null ? '—' : `${progressLabel}%`;
+    element('fox-rescue-percent').textContent = progress === null ? '—' : `${progressLabel}%`;
     element('fox-map-progress-fill').style.width = `${progress ?? 0}%`;
     element('fox-rescue-progress-fill').style.width = `${progress ?? 0}%`;
     element('fox-map-status').textContent = this.rescueStatus === 'loading' ? 'Łączenie z misją…'
@@ -407,13 +539,15 @@ export class FoxGame {
     this.mapScene.setAttribute('aria-label', rescued
       ? 'Lisek został uwolniony. Otwórz grę i graj dalej.'
       : `Lisek czeka w leśnej klatce. ${progressText}. Otwórz grę.`);
-    element('fox-storage-note').textContent = !this.storageAvailable
+    const storageNote = element('fox-storage-note');
+    storageNote.dataset.status = this.storageAvailable ? this.syncStatus : 'storage-unavailable';
+    storageNote.textContent = !this.storageAvailable
       ? 'Bez rejestracji. Postęp jest dostępny tylko w tej sesji.'
       : this.syncStatus === 'synced' ? 'Bez rejestracji. Postęp zapisany tutaj i zsynchronizowany anonimowo.'
         : this.syncStatus === 'syncing' ? 'Bez rejestracji. Postęp zapisany tutaj; synchronizacja w toku…'
           : this.syncStatus === 'offline' ? 'Postęp zapisany tutaj. Synchronizacja jest chwilowo niedostępna.'
             : 'Bez rejestracji. Postęp jest zapisywany w tej przeglądarce.';
-    this.undoButton.disabled = this.history.length === 0 || this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'won';
+    this.undoButton.disabled = this.history.length === 0 || this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'celebrating' || this.phase === 'won';
     this.previousLevelsButton.disabled = this.levelPageStart === 0;
     this.nextLevelsButton.disabled = this.levelPageStart + LEVELS_PER_PAGE > completed;
     this.levelButtons.forEach((button, offset) => {

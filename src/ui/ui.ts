@@ -1,12 +1,16 @@
 import type { BuildingRec, Manifest } from '../data/types';
 import type { ResolvedLandmark } from '../city/landmarksIndex';
 import type { Season } from '../rendering/seasons';
+import { AdventCalendar, offerExpired } from '../advent/calendar';
+import { ADVENT_YEAR, type AdventOffer } from '../advent/offers';
 import { h } from './dom';
 import { HEIGHT_SOURCE, KIND_LABEL, functionLabel } from './labels';
 
 export interface UIHandlers {
   onClosePanel(): void;
   onPlace(id: string): void;
+  onAdventOffer(offer: AdventOffer): void;
+  onAdventPreview(preview: boolean): void;
   onReset(): void;
   onNight(on: boolean): void;
   onZoom(factor: number): void;
@@ -30,10 +34,21 @@ export class UI {
   private nightBtn = $<HTMLButtonElement>('btn-night');
   private liveTime = $<HTMLInputElement>('live-time');
   private liveWeather = $<HTMLInputElement>('live-weather');
+  private advent: AdventCalendar;
+  private currentAdventOffer: AdventOffer | null = null;
+  private currentAdventExpired = false;
   private night = false;
 
   constructor(private hd: UIHandlers) {
+    this.advent = new AdventCalendar((offer) => {
+      this.closeMenus();
+      hd.onAdventOffer(offer);
+    }, () => {
+      this.closeMenus();
+      $('btn-advent').focus({ preventScroll: true });
+    }, (preview) => hd.onAdventPreview(preview));
     $('btn-reset').onclick = () => hd.onReset();
+    $('btn-advent').onclick = () => this.toggleAdvent();
     this.placesBtn.onclick = () => this.togglePlaces();
     this.settingsBtn.onclick = () => this.toggleSettings();
     this.nightBtn.onclick = () => this.setNight(!this.night, true);
@@ -64,6 +79,8 @@ export class UI {
     $<HTMLInputElement>('show-motion').onchange = (event) => hd.onMotion((event.target as HTMLInputElement).checked);
     this.liveTime.onchange = () => hd.onLiveTime(this.liveTime.checked);
     this.liveWeather.onchange = () => hd.onWeather(this.liveWeather.checked);
+    document.addEventListener('visibilitychange', () => this.refreshAdventOffer());
+    setInterval(() => this.refreshAdventOffer(), 60_000);
     addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.closeMenus();
@@ -89,7 +106,7 @@ export class UI {
     this.closeMenus();
     this.places.hidden = !show;
     this.placesBtn.setAttribute('aria-expanded', String(show));
-    if (show) this.panel.hidden = true;
+    if (show) this.hidePanel();
   }
 
   private toggleSettings() {
@@ -97,12 +114,22 @@ export class UI {
     this.closeMenus();
     this.settings.hidden = !show;
     this.settingsBtn.setAttribute('aria-expanded', String(show));
-    if (show) this.panel.hidden = true;
+    if (show) this.hidePanel();
+  }
+
+  private toggleAdvent() {
+    const show = !this.advent.isOpen;
+    this.closeMenus();
+    if (show) {
+      this.hidePanel();
+      this.advent.open();
+    }
   }
 
   private closeMenus() {
     this.places.hidden = true;
     this.settings.hidden = true;
+    this.advent.close();
     this.placesBtn.setAttribute('aria-expanded', 'false');
     this.settingsBtn.setAttribute('aria-expanded', 'false');
   }
@@ -127,13 +154,19 @@ export class UI {
 
   hidePanel() {
     this.panel.hidden = true;
+    this.currentAdventOffer = null;
+    document.body.classList.remove('advent-offer-open');
   }
 
-  private open(title: string, body: Node[]) {
+  private open(title: string, body: Node[], eyebrow = 'MAŁA MŁAWA / MIEJSCE', advent = false) {
+    if (!advent) this.currentAdventOffer = null;
+    document.body.classList.toggle('advent-offer-open', advent);
+    $('panel-eyebrow').textContent = eyebrow;
     $('panel-title').textContent = title;
     $('panel-body').replaceChildren(...body);
     this.panel.hidden = false;
     this.closeMenus();
+    if (advent) $('panel-title').focus({ preventScroll: true });
   }
 
   private facts(rec: BuildingRec): HTMLElement {
@@ -169,6 +202,50 @@ export class UI {
     if (l.lm.description) body.push(h('p', { text: l.lm.description }));
     if (rec) body.push(this.facts(rec), this.sourceLink(rec));
     this.open(l.lm.name, body);
+  }
+
+  showAdventOffer(offer: AdventOffer) {
+    const { business } = offer;
+    const expired = !offer.example && offerExpired(offer);
+    this.currentAdventOffer = offer;
+    this.currentAdventExpired = expired;
+    const body: Node[] = [];
+    if (business.sponsor) body.push(h('span', { class: 'advent-offer-badge', text: '★ ZŁOTY DZIEŃ / GŁÓWNY SPONSOR' }));
+    if (offer.example) {
+      const notice = business.sponsor
+        ? 'To tylko przykład. Rabat nie jest potwierdzony i nie można go wykorzystać.'
+        : 'To tylko przykład. Udział lokalu i rabat nie są potwierdzone; kupon nie jest aktywny.';
+      body.push(h('p', { class: 'advent-offer-warning', text: notice }));
+    }
+
+    const label = offer.example ? 'PRZYKŁADOWY RABAT' : expired ? 'OFERTA ZAKOŃCZONA' : 'RABAT ADWENTOWY';
+    const end = offer.validThrough ?? `${ADVENT_YEAR}-12-${String(offer.day).padStart(2, '0')}`;
+    const [year, month, day] = end.split('-');
+    const validity = offer.example ? 'Kupon demonstracyjny' : `Ważne do ${day}.${month}.${year}`;
+    body.push(h('div', { class: `advent-offer-card${business.sponsor ? ' sponsor' : ''}` },
+      h('small', { text: label }), h('strong', { text: offer.discount }), h('small', { text: validity })));
+    body.push(h('p', { text: business.description }));
+    body.push(h('p', { class: 'advent-address', text: `📍 ${business.address}` }));
+    body.push(h('p', { class: 'advent-location-note', text: 'Znacznik jest orientacyjny — dokładny lokal i adres warto potwierdzić.' }));
+    body.push(h('div', { class: 'advent-coupon' },
+      h('small', { text: 'KOD KUPONU' }),
+      h('strong', { text: offer.coupon ?? (offer.example ? 'Kod do ustalenia' : 'Nie podano kodu') })));
+    if (offer.terms) body.push(h('p', { text: offer.terms }));
+
+    const back = h('button', { class: 'advent-return', text: '← Wróć do kalendarza' });
+    back.type = 'button';
+    back.onclick = () => {
+      this.hd.onClosePanel();
+      this.toggleAdvent();
+    };
+    body.push(back);
+    this.open(business.name, body, `${offer.day} GRUDNIA / ADWENT ${ADVENT_YEAR}`, true);
+  }
+
+  private refreshAdventOffer() {
+    const offer = this.currentAdventOffer;
+    if (!offer || this.panel.hidden || offer.example || offerExpired(offer) === this.currentAdventExpired) return;
+    this.showAdventOffer(offer);
   }
 
   hideLoading() {

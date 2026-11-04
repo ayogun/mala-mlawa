@@ -29,11 +29,11 @@ export function makeLevel(name: string, rows: readonly string[]): Level {
 
 export const LEVELS: readonly Level[] = [
   makeLevel('Pierwsze kroki', [
-    '..####..',
-    '..####..',
-    '######..',
-    'S####G..',
-    '######..',
+    '#######',
+    '#######',
+    '##S##G#',
+    '#######',
+    '#######',
   ]),
   makeLevel('Mostek przez śnieg', [
     '..######..',
@@ -79,7 +79,41 @@ export const LEVELS: readonly Level[] = [
   ]),
 ];
 
-export function hasTile(level: Level, column: number, row: number): boolean {
+export const BRIDGE_LEVELS: readonly Level[] = [
+  makeLevel('Pierwszy most', [
+    '####.####',
+    '####.##G#',
+    '##T#.####',
+    '####B####',
+    '####B####',
+    '#S##.####',
+    '####.####',
+  ]),
+  makeLevel('Zimowa przeprawa', [
+    '.###.##..#',
+    '####.###.#',
+    '###T.###G#',
+    '###..#####',
+    '###..##.##',
+    '####B#.###',
+    '#S.#B#####',
+    '####.#####',
+    '####.#####',
+  ]),
+  makeLevel('Dwa przyciski', [
+    '##.....#..',
+    '###....#..',
+    '#T#..#.#G.',
+    '###.##.###',
+    '###.##.###',
+    '###.##B###',
+    '###B.#B###',
+    '#S#B#T.###',
+    '###....###',
+  ]),
+];
+
+export function hasTile(level: Level, column: number, row: number, bridgesOpen = false): boolean {
   const tile = level.rows[row]?.[column];
-  return tile !== undefined && tile !== '.';
+  return tile !== undefined && tile !== '.' && (tile !== 'B' || bridgesOpen);
 }

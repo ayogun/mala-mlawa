@@ -243,7 +243,7 @@ export class CameraRig {
       let da = ang - this.lastAngle;
       if (da > Math.PI) da -= Math.PI * 2;
       if (da < -Math.PI) da += Math.PI * 2;
-      this.azim -= da;
+      this.azim += da;
       this.apply();
       this.pinTo(mid.x, mid.y);
       this.lastMid = mid;

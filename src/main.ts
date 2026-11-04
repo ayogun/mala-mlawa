@@ -1,14 +1,15 @@
 import './ui/styles.css';
 import './game/game.css';
+import './advent/advent.css';
 import { PCFShadowMap, Scene, WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPixelatedPass } from 'three/addons/postprocessing/RenderPixelatedPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
-import { unproject } from './data/geo';
+import { project, unproject } from './data/geo';
 import { LANDMARKS } from './data/landmarks';
-import { LandmarkIndex, type ResolvedLandmark } from './city/landmarksIndex';
+import { inBuilding, LandmarkIndex, type ResolvedLandmark } from './city/landmarksIndex';
 import { CityWorld } from './city/cityWorld';
 import { CameraRig } from './interactions/controls';
 import { pickBuilding } from './interactions/picking';
@@ -21,6 +22,8 @@ import { Markers } from './ui/markers';
 import { UI } from './ui/ui';
 import { FoxGame } from './game/foxGame';
 import { ForestScene, FOX_FOREST_POSITION } from './game/forestScene';
+import { AdventMapMarkers } from './advent/mapMarkers';
+import type { AdventOffer } from './advent/offers';
 
 const params = new URLSearchParams(location.search);
 const debug = params.has('debug');
@@ -81,6 +84,11 @@ const renderPixelSize = (size: number) => size === 1 ? 1 : Math.max(2, Math.roun
 const ui = new UI({
   onClosePanel: () => clearSelection(),
   onPlace: (id) => selectLandmark(id),
+  onAdventOffer: (offer) => selectAdventOffer(offer),
+  onAdventPreview: (preview) => {
+    if (!preview && selectedAdvent?.example) clearSelection();
+    adventMarkers.setPreview(preview);
+  },
   onReset: () => { clearSelection(); rig.reset(); },
   onNight: (on) => { dayNight.setNight(on); invalidate(); },
   onZoom: (factor) => rig.zoomBy(factor),
@@ -92,7 +100,10 @@ const ui = new UI({
     if (antialiasPass) antialiasPass.enabled = size === 1;
     invalidate();
   },
-  onMarkers: (visible) => markers?.setVisible(visible),
+  onMarkers: (visible) => {
+    markers?.setVisible(visible);
+    adventMarkers.setVisible(visible);
+  },
   onMotion: (enabled) => world.setMotion(enabled),
   onLiveTime: (enabled) => {
     dayNight.setLiveTime(enabled);
@@ -121,6 +132,15 @@ ui.setMotion(initialMotion);
 // ---------- selection ----------
 let selectedLandmark: ResolvedLandmark | null = null;
 let landmarkHighlighted = false;
+let selectedAdvent: AdventOffer | null = null;
+let selectedAdventBuilding: BuildingRec | undefined;
+const adventMarkers = new AdventMapMarkers(
+  document.getElementById('advent-map-layer')!,
+  (offer) => adventRec(offer),
+  (offer) => selectAdventOffer(offer),
+  invalidate,
+);
+scene.add(adventMarkers.group);
 
 function buildingCentre(rec: BuildingRec): { x: number; z: number } {
   const r = rec.r[0];
@@ -131,7 +151,7 @@ function buildingCentre(rec: BuildingRec): { x: number; z: number } {
 }
 
 /** fly so that (x,z) ends up in the visible part of the screen (above the bottom sheet on phones) */
-function focus(x: number, z: number, zoom: number) {
+function focus(x: number, z: number, zoom: number, avoidSidePanel = false) {
   const z2 = Math.max(rig.zoom, zoom);
   const { w, h } = rig.size;
   let tx = x, tz = z;
@@ -139,16 +159,28 @@ function focus(x: number, z: number, zoom: number) {
     const d = (0.17 * h) / (z2 * Math.sin(rig.elev));
     tx += Math.sin(rig.azim) * d;
     tz += Math.cos(rig.azim) * d;
+  } else if (avoidSidePanel) {
+    const d = Math.min(175, w * 0.22) / z2;
+    tx -= Math.cos(rig.azim) * d;
+    tz += Math.sin(rig.azim) * d;
   }
   rig.flyTo(tx, tz, z2, 750);
 }
 
 function clearSelection() {
   selectedLandmark = null;
+  clearAdventSelection();
   highlight.set(null);
   markers?.setSelected(null);
   ui.hidePanel();
   invalidate();
+}
+
+function clearAdventSelection() {
+  if (!selectedAdvent) return;
+  selectedAdvent = null;
+  selectedAdventBuilding = undefined;
+  adventMarkers.setSelected(null);
 }
 
 function landmarkRec(l: ResolvedLandmark): BuildingRec | undefined {
@@ -159,6 +191,7 @@ function landmarkRec(l: ResolvedLandmark): BuildingRec | undefined {
 function selectLandmark(id: string) {
   const l = landmarks.byId(id);
   if (!l) return;
+  clearAdventSelection();
   selectedLandmark = l;
   markers?.setSelected(id);
   const rec = landmarkRec(l);
@@ -171,14 +204,47 @@ function selectLandmark(id: string) {
 }
 
 function selectBuilding(rec: BuildingRec, chunkKey: string, index: number) {
+  const adventOffer = adventMarkers.offerForBuilding(rec);
+  if (adventOffer) return selectAdventOffer(adventOffer);
   const lm = landmarks.list.find((l) => l.chunkKey === chunkKey && l.buildingIndex === index);
   if (lm) return selectLandmark(lm.lm.id);
+  clearAdventSelection();
   selectedLandmark = null;
   markers?.setSelected(null);
   highlight.set(rec);
   ui.showBuilding(rec);
   const c = buildingCentre(rec);
   focus(c.x, c.z, 2.2);
+  invalidate();
+}
+
+function adventRec(offer: AdventOffer): BuildingRec | undefined {
+  const id = offer.business.buildingOsmId;
+  if (id !== undefined) {
+    for (const chunk of world.chunks.values()) {
+      const rec = chunk.data.b.find((building) => building.s !== 'egib' && building.id === id);
+      if (rec) return rec;
+    }
+  }
+  const point = project(offer.business.latitude, offer.business.longitude);
+  for (const chunk of world.chunks.values()) {
+    const rec = chunk.data.b.find((building) => inBuilding(point.x, point.z, building.r[0]));
+    if (rec) return rec;
+  }
+  return undefined;
+}
+
+function selectAdventOffer(offer: AdventOffer) {
+  selectedLandmark = null;
+  selectedAdvent = offer;
+  markers?.setSelected(null);
+  const point = project(offer.business.latitude, offer.business.longitude);
+  const rec = adventRec(offer);
+  selectedAdventBuilding = rec;
+  highlight.set(rec ?? null);
+  adventMarkers.setSelected(offer);
+  ui.showAdventOffer(offer);
+  focus(point.x, point.z, 2.2, true);
   invalidate();
 }
 
@@ -203,12 +269,20 @@ function frame(now: number) {
   if (world.pump(8)) {
     need = true;
     shadowDirty = true;
+    adventMarkers.resolveBuildings();
     if (selectedLandmark && !landmarkHighlighted) {
       const rec = landmarkRec(selectedLandmark);
       if (rec) {
         landmarkHighlighted = true;
         highlight.set(rec);
         ui.showLandmark(selectedLandmark, rec);
+      }
+    }
+    if (selectedAdvent) {
+      const rec = adventRec(selectedAdvent);
+      if (rec !== selectedAdventBuilding) {
+        selectedAdventBuilding = rec;
+        highlight.set(rec ?? null);
       }
     }
   }
@@ -226,6 +300,7 @@ function frame(now: number) {
   renderer.info.reset();
   composer.render(dt);
   markers?.update(rig);
+  adventMarkers.update(rig);
   forestScene.update(rig);
   const { lat, lon } = unproject(rig.target.x, rig.target.z);
   ui.setView(lat, lon, rig.zoom);
@@ -278,7 +353,7 @@ async function boot() {
 
   addEventListener('keydown', (event) => {
     const target = event.target as HTMLElement | null;
-    if (foxGame.isOpen || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? '')) return;
+    if (foxGame.isOpen || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || target?.isContentEditable || target?.closest?.('#advent-calendar, #panel') || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? '')) return;
     switch (event.key.toLowerCase()) {
       case 'w': case 'arrowup': rig.panBy(0, 100); break;
       case 's': case 'arrowdown': rig.panBy(0, -100); break;

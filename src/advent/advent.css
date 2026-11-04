@@ -1,0 +1,91 @@
+.advent-trigger {
+  position: absolute; z-index: 3; top: calc(64px + var(--safe-t)); right: 12px;
+  display: flex; width: 184px; min-height: 44px; align-items: center; gap: 8px; padding: 6px 9px;
+  border: 2px solid #080d15; color: #fff3da; background: #874b38;
+  box-shadow: inset 0 0 0 1px #d39a67, 3px 4px 0 rgba(5, 9, 15, .35); text-align: left;
+}
+.advent-trigger:hover, .advent-trigger[aria-expanded='true'] { background: #a45b3f; }
+.advent-trigger svg { width: 24px; height: 24px; flex: none; fill: #f5ce79; }
+.advent-trigger small, .advent-trigger strong { display: block; }
+.advent-trigger small { color: #f7d99d; font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.advent-trigger strong { margin-top: 3px; font-size: 10px; line-height: 1.2; }
+
+#advent-calendar { top: calc(116px + var(--safe-t)); right: 12px; left: auto; width: 380px; max-height: calc(100vh - 132px); }
+.advent-intro { margin: 12px 0; color: #d7e1d8; font-size: 11px; line-height: 1.45; }
+.advent-notice {
+  margin: 0 0 12px; padding: 8px 9px; border-left: 3px solid #efc06e;
+  color: #f8dfb5; background: #524337; font-size: 10px; line-height: 1.45;
+}
+.advent-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.advent-door {
+  position: relative; display: flex; min-width: 0; min-height: 48px; align-items: center; justify-content: center;
+  border: 1px solid #778f80; color: #fcf4df; background: #426758; box-shadow: inset 0 0 0 2px #345548;
+}
+.advent-door:not(:disabled):hover { color: #fff; background: #588571; }
+.advent-door:disabled { color: #b7c8bb; background: #304941; cursor: default; }
+.advent-door.sponsor { border-color: #e6ba60; color: #4a2d0b; background: #f1c15d; box-shadow: inset 0 0 0 2px #e1a943; }
+.advent-door.sponsor:not(:disabled):hover { color: #3c2609; background: #ffda7c; }
+.advent-door.sponsor:disabled { color: #f5d894; background: #896f3c; box-shadow: inset 0 0 0 2px #745b30; }
+.advent-door.today { outline: 2px solid #f3e5b6; outline-offset: -4px; }
+.advent-door-number { font-size: 17px; font-weight: 800; line-height: 1; }
+.advent-door-mark { position: absolute; right: 4px; bottom: 3px; font-size: 8px; font-weight: 800; line-height: 1; }
+.advent-legend { margin: 10px 0; color: #d7dccb; font-size: 10px; line-height: 1.4; }
+.advent-legend span { color: #f1c15d; }
+.advent-preview, .advent-return {
+  display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 10px; border: 1px solid #d2a96c; color: #f8ecd1; background: #513f32; text-align: left;
+}
+.advent-preview:hover, .advent-return:hover { background: #69513b; }
+.advent-preview { margin-bottom: 12px; }
+.advent-preview strong, .advent-preview small { display: block; }
+.advent-preview strong { font-size: 10px; }
+.advent-preview small { margin-top: 4px; color: #e2c9a7; font-size: 9px; }
+
+#advent-map-layer { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; }
+.advent-map-marker {
+  position: absolute; top: 0; left: 0; display: flex; align-items: center; flex-direction: column;
+  padding: 3px; border: 0; color: #fff4df; background: none; cursor: pointer; pointer-events: auto; will-change: transform;
+}
+.advent-map-pin {
+  display: grid; width: 38px; height: 38px; place-items: center; border: 2px solid #fff4d8;
+  border-radius: 50% 50% 50% 0; background: #a6533d; box-shadow: 2px 3px 0 rgba(0, 0, 0, .35);
+  font-size: 20px; transform: rotate(-45deg);
+}
+.advent-map-pin > span { transform: rotate(45deg); }
+.advent-map-marker.sponsor .advent-map-pin { border-color: #fff0b5; background: #c49335; }
+.advent-map-marker:focus-visible .advent-map-pin, .advent-map-marker.selected .advent-map-pin { outline: 3px solid #fff4d8; outline-offset: 3px; }
+.advent-map-label {
+  max-width: 190px; margin-top: 5px; padding: 5px 7px; overflow: hidden; border: 2px solid #090d15; color: #ffe3a2; background: #1b2432;
+  box-shadow: inset 0 0 0 1px #6b7169, 2px 2px 0 rgba(0, 0, 0, .3); font-size: 9px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.advent-offer-badge { display: inline-block; margin-bottom: 5px; color: #f4d284; font-size: 10px; font-weight: 800; }
+.advent-offer-card { margin: 12px 0; padding: 12px; border: 1px solid #ca9862; color: #fff7e6; background: #694535; }
+.advent-offer-card.sponsor { border-color: #f0c567; color: #382608; background: #eabe63; }
+.advent-offer-card small, .advent-offer-card strong { display: block; }
+.advent-offer-card small { font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.advent-offer-card strong { margin: 6px 0; font-size: 18px; line-height: 1.2; }
+.advent-offer-warning { padding: 9px; border-left: 3px solid #f1c15d; color: #f9dfb5; background: #524337; font-size: 10px; }
+.advent-address { color: #d3ded5; }
+.advent-location-note { color: #abb9b1; font-size: 10px; }
+.advent-coupon { margin: 12px 0; padding: 9px; border: 1px dashed #889a8e; }
+.advent-coupon small, .advent-coupon strong { display: block; }
+.advent-coupon small { color: #b6c8b7; font-size: 9px; font-weight: 800; }
+.advent-coupon strong { margin-top: 5px; font-size: 12px; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.advent-return { justify-content: center; margin-top: 13px; font-size: 10px; font-weight: 800; }
+
+@media (max-width: 719px) {
+  body.advent-offer-open .fox-invite { display: none; }
+  .advent-trigger { top: calc(60px + var(--safe-t)); width: 126px; gap: 5px; padding: 5px 6px; }
+  .advent-trigger svg { width: 20px; height: 20px; }
+  .advent-trigger small { font-size: 7px; }
+  .advent-trigger strong { font-size: 9px; }
+  #advent-calendar { top: auto; right: 12px; bottom: calc(64px + var(--safe-b)); left: 12px; width: auto; max-height: min(74vh, calc(100vh - 86px)); }
+  .advent-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .advent-door { min-height: 44px; }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  #advent-calendar { top: calc(60px + var(--safe-t)); right: 12px; bottom: 12px; left: auto; width: min(380px, calc(100vw - 24px)); max-height: none; }
+  .advent-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

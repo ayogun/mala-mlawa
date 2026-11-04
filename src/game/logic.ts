@@ -7,6 +7,13 @@ export interface BlockPosition extends BoardCell {
   axis: BlockAxis;
 }
 
+export interface MoveResult {
+  position: BlockPosition;
+  bridgesOpen: boolean;
+  switchPressed: boolean;
+  supported: boolean;
+}
+
 export interface DirectionDelta {
   column: number;
   row: number;
@@ -50,8 +57,24 @@ export function occupiedCells(position: BlockPosition): BoardCell[] {
   return cells;
 }
 
-export function isSupported(level: Level, position: BlockPosition): boolean {
-  return occupiedCells(position).every(({ column, row }) => hasTile(level, column, row));
+export function isSupported(level: Level, position: BlockPosition, bridgesOpen = false): boolean {
+  return occupiedCells(position).every(({ column, row }) => hasTile(level, column, row, bridgesOpen));
+}
+
+export function moveBlock(level: Level, position: BlockPosition, direction: Direction, bridgesOpen: boolean): MoveResult {
+  const destination = roll(position, direction);
+  if (!isSupported(level, destination, bridgesOpen)) {
+    return { position: destination, bridgesOpen, switchPressed: false, supported: false };
+  }
+
+  const switchPressed = destination.axis === 'upright' && level.rows[destination.row]?.[destination.column] === 'T';
+  const nextBridgesOpen = switchPressed ? !bridgesOpen : bridgesOpen;
+  return {
+    position: destination,
+    bridgesOpen: nextBridgesOpen,
+    switchPressed,
+    supported: isSupported(level, destination, nextBridgesOpen),
+  };
 }
 
 export function isGoal(level: Level, position: BlockPosition): boolean {

@@ -26,4 +26,9 @@ export class Highlight {
     this.mesh.renderOrder = 12;
     this.group.add(this.mesh);
   }
+
+  dispose() {
+    this.set(null);
+    this.material.dispose();
+  }
 }

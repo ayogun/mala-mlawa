@@ -49,7 +49,7 @@ export class LandmarkIndex {
   }
 }
 
-function inBuilding(x: number, z: number, ring: number[]): boolean {
+export function inBuilding(x: number, z: number, ring: number[]): boolean {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (let i = 0; i < ring.length; i += 2) {
     minX = Math.min(minX, ring[i]); maxX = Math.max(maxX, ring[i]);
