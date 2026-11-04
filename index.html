@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#a9c5c6" />
+    <meta name="description" content="Mała Mława — Cała Mława. Tylko trochę mniejsza. Interaktywna miniatura Mławy zbudowana z prawdziwych danych geograficznych." />
+    <title>Mała Mława</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23cfe5ef'/%3E%3Cpath d='M6 24V14l6-5 6 5v10zM18 24V16l5-4 4 4v8z' fill='%23c8664b'/%3E%3Cpath d='M8 24v-9l4-3.5 4 3.5v9z' fill='%23f4e7d3'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage" aria-label="Interaktywna mapa 3D Mławy"></div>
+      <div id="markers"></div>
+      <div id="fox-map-layer">
+        <button id="fox-map-scene" class="fox-map-scene" type="button" aria-haspopup="dialog" aria-controls="fox-game" aria-label="Lisek czeka w leśnej klatce. Otwórz grę i pomóż go uratować." hidden>
+          <svg viewBox="0 0 240 200" aria-hidden="true">
+            <path d="M8 163 100 118 231 161 137 197Z" fill="#284c40" opacity=".28"/>
+            <path d="M15 157 105 116 228 158 137 190Z" fill="#d5e7d2" stroke="#577b69" stroke-width="2"/>
+            <path d="m15 157 122 33v6L15 163zm122 33 91-32v6l-91 32z" fill="#8bac99"/>
+            <g stroke="#486d5a" stroke-width="2" stroke-linejoin="round">
+              <path d="M32 146h11v18H32z" fill="#8b694d"/>
+              <path d="M10 145 38 94l28 51H53l8 9H15l8-9z" fill="#487b59"/>
+              <path d="m17 127 21-40 21 40H49l7 8H20l7-8z" fill="#5b9169"/>
+              <path d="m25 112 13-27 13 27-8-3-5 3-5-3z" fill="#eef4e2" stroke="none"/>
+              <path d="M199 130h10v32h-10z" fill="#8b694d"/>
+              <path d="m171 138 33-61 31 61h-12l10 12h-58l9-12z" fill="#416f52"/>
+              <path d="m179 119 25-49 25 49h-11l7 9h-42l7-9z" fill="#558b64"/>
+              <path d="m188 99 16-31 16 31-9-3-7 3-7-3z" fill="#edf4e5" stroke="none"/>
+            </g>
+            <g class="fox-scene-sparkles" fill="#f2cb75">
+              <path d="M72 55h3v7h-3zm-2 2h7v3h-7zM178 44h3v7h-3zm-2 2h7v3h-7zM22 79h2v6h-2zm-2 2h6v2h-6z"/>
+            </g>
+            <g class="fox-scene-bird">
+              <path d="M154 52q-7-8-13-3l-5-3 3 7q5 8 15 3z" fill="#759ca0" stroke="#385a58" stroke-width="2"/>
+              <path class="fox-scene-wing" d="m147 53-8-8 3 10z" fill="#b9d1c5"/>
+              <path d="m153 52 5 2-5 2z" fill="#e9b65c"/>
+              <circle cx="150" cy="51.5" r="1" fill="#263a38"/>
+            </g>
+            <path d="m78 76 16-9 68-4 14 9-17 10z" fill="#a8b4a1" stroke="#455b52" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M79 78v58l16 9 66-4 15-10V73l-16 9v58M95 74v67m22-71v66m22-68v66" fill="none" stroke="#6e8276" stroke-width="3" stroke-linejoin="round"/>
+            <path d="m82 133 69-3 14 8-69 9z" fill="#8b9b88" opacity=".55"/>
+            <g class="fox-scene-fox">
+              <path class="fox-scene-tail" d="M111 128q-29-18-29 3 2 14 26 15l13-8z" fill="#cc7149" stroke="#8d4c38" stroke-width="2"/>
+              <path d="M85 130q-1 9 8 12l8-1-11-12z" fill="#faedda"/>
+              <path d="M101 127q0-20 21-20t22 20v16h-43z" fill="#df8552" stroke="#8d4c38" stroke-width="2"/>
+              <path d="M112 127q10-8 21 0v16h-21z" fill="#f7ead6"/>
+              <path d="m98 84 19 8 8-2 8 2 19-8-5 30q-5 13-22 16-18-3-22-16z" fill="#df8552" stroke="#8d4c38" stroke-width="2" stroke-linejoin="round"/>
+              <path d="m103 90 10 5-7 5zm44 0-10 5 7 5z" fill="#f4bb91"/>
+              <path d="M103 110q9 2 15 9l7-6 7 6q6-7 15-9-3 16-22 20-19-4-22-20z" fill="#f9efdd"/>
+              <g class="fox-scene-sad-face" fill="none" stroke="#3b4540" stroke-width="2" stroke-linecap="round">
+                <path d="m109 104 5-2m22 2-5-2M110 109v2m25-2v2"/>
+                <path d="M122 123q3-3 6 0"/>
+              </g>
+              <g class="fox-scene-happy-face" fill="none" stroke="#3b4540" stroke-width="2" stroke-linecap="round">
+                <path d="m109 109 3-2 3 2m16 0 3-2 3 2m-15 12q3 4 6 0"/>
+              </g>
+              <path d="m122 117 3 3 3-3-3-2z" fill="#35423d"/>
+              <path class="fox-scene-tear" d="M139 113q4 4 0 7-4-3 0-7z" fill="#8fc7d5"/>
+              <path d="M103 128q21 8 43-1l-1 7q-20 8-40 0z" fill="#ba5945"/>
+            </g>
+            <path d="M78 76v61l17 10m64-66v60l17-10V72M78 76l81 5M95 147l64-6M95 77v69m58-65v61" fill="none" stroke="#455b52" stroke-width="4" stroke-linecap="square" stroke-linejoin="round"/>
+            <g class="fox-scene-door">
+              <path d="M106 78v66l34-2V80zM122 79v64" fill="none" stroke="#455b52" stroke-width="3.5"/>
+              <rect x="134" y="110" width="10" height="11" rx="2" fill="#e8b451" stroke="#765c3b" stroke-width="1.5"/>
+              <path d="M137 110v-3a2 2 0 0 1 4 0v3" fill="none" stroke="#765c3b" stroke-width="1.5"/>
+              <circle cx="139" cy="115" r="1" fill="#765c3b"/>
+            </g>
+            <g class="fox-scene-rabbit">
+              <path d="M50 131q-7-20-2-22 5-1 7 20m1 1q-2-23 3-23 5 1 3 24" fill="#f7eddc" stroke="#9c9b8a" stroke-width="2"/>
+              <path d="M42 154q-2-16 12-17 13 0 14 17l-5 4H46z" fill="#eee5d5" stroke="#9c9b8a" stroke-width="2"/>
+              <circle cx="55" cy="135" r="10" fill="#f7eddc" stroke="#9c9b8a" stroke-width="2"/>
+              <circle cx="59" cy="134" r="1.4" fill="#384942"/>
+              <path d="M65 143q7-3 10-9" fill="none" stroke="#eee5d5" stroke-width="5" stroke-linecap="round"/>
+              <path d="M74 134h23m-6 0v4m4-4v3" fill="none" stroke="#d5a34d" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="74" cy="134" r="4" fill="none" stroke="#d5a34d" stroke-width="3"/>
+              <path d="M46 144q8 4 17 0" fill="none" stroke="#bd6250" stroke-width="3"/>
+            </g>
+            <g class="fox-scene-squirrel">
+              <path d="M190 154q23 3 22-13-1-12-13-10 9 7 1 12z" fill="#c78252" stroke="#925b40" stroke-width="2"/>
+              <path d="M180 154q-3-14 8-17 11-2 13 17z" fill="#d79a66" stroke="#925b40" stroke-width="2"/>
+              <path d="m181 132-2-8 7 3 5-1 5 2 4-4 1 9q0 9-10 10-9 0-10-11z" fill="#d79a66" stroke="#925b40" stroke-width="2"/>
+              <path d="M184 136q6 4 12 0-1 6-6 6t-6-6" fill="#fae9cf"/>
+              <circle cx="186" cy="132" r="1.5" fill="#35443d"/>
+              <path d="M181 145q-5-2-8-8" fill="none" stroke="#d79a66" stroke-width="5" stroke-linecap="round"/>
+              <path d="M172 137 145 116" fill="none" stroke="#bc8d58" stroke-width="2" stroke-dasharray="3 2"/>
+            </g>
+            <path d="m36 169 4 1 4-1m115 6 5-2 5 1m-56 4 3 1 3-1" fill="none" stroke="#a4c7b2" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span id="fox-scene-label" class="fox-scene-label">POMÓŻ LISKOWI <span aria-hidden="true">↗</span></span>
+        </button>
+      </div>
+      <canvas id="weather" aria-hidden="true" hidden></canvas>
+
+      <header class="brand">
+        <span class="brand-kicker">MIASTO W IZOMETRII</span>
+        <h1>Mała Mława</h1>
+        <p>Cała Mława. Tylko trochę mniejsza.</p>
+      </header>
+
+      <section class="fox-invite" aria-label="Misja ratunkowa liska">
+        <button id="btn-fox-game" class="fox-invite-play" type="button" aria-haspopup="dialog" aria-controls="fox-game">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#d77a48" d="M5 8 15 13 24 10 33 13 43 8 39 29 24 41 9 29Z"/><path fill="#f2b074" d="m9 12 7 5-5 5zm30 0-7 5 5 5z"/><path fill="#f8e6cc" d="m8 26 9 4 7-5 7 5 9-4-3 9-13 8-13-8z"/><circle cx="17" cy="25" r="2" fill="#263a38"/><circle cx="31" cy="25" r="2" fill="#263a38"/><path d="m21 33 3 2 3-2-3-3z" fill="#263a38"/></svg>
+          <span><small>ZIMOWA MINI GRA</small><strong id="fox-invite-title">Uratuj liska <span aria-hidden="true">↗</span></strong></span>
+        </button>
+        <div class="fox-invite-progress">
+          <div class="fox-invite-progress-heading"><span>TWÓJ POSTĘP</span><strong id="fox-map-percent">0%</strong></div>
+          <div id="fox-map-progress" class="fox-meter" role="progressbar" aria-label="Twój postęp w ratowaniu liska" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 procent, ukończono 0 z 20 plansz"><span id="fox-map-progress-fill"></span></div>
+        </div>
+        <button id="fox-find" class="fox-find" type="button">Zobacz liska w lesie <span aria-hidden="true">↗</span></button>
+      </section>
+
+      <nav class="tools tools-top" aria-label="Opcje mapy">
+        <button id="btn-places" title="Miejsca" aria-label="Miejsca" aria-controls="places" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+        </button>
+        <button id="btn-night" title="Dzień / noc" aria-label="Dzień / noc" aria-pressed="false">
+          <svg class="i-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0l1 3h-2zm0 20-1-3h2zM2 12l3-1v2zm20 0-3 1v-2zM4.9 4.9l3 1-1.4 1.4zm14.2 14.2-3-1 1.4-1.4zM4.9 19.1l1-3 1.4 1.4zM19.1 4.9l-1 3-1.4-1.4z"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
+        </button>
+        <button id="btn-settings" title="Ustawienia" aria-label="Ustawienia" aria-controls="settings" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="m19.4 13 .1-1-.1-1 2-1.5-2-3.5-2.3.9a7 7 0 0 0-1.7-1L15 3H9l-.4 2.9a7 7 0 0 0-1.7 1L4.6 6 2.6 9.5l2 1.5-.1 1 .1 1-2 1.5 2 3.5 2.3-.9a7 7 0 0 0 1.7 1L9 21h6l.4-2.9a7 7 0 0 0 1.7-1l2.3.9 2-3.5-2-1.5zM12 15.2A3.2 3.2 0 1 1 12 8.8a3.2 3.2 0 0 1 0 6.4z"/></svg>
+        </button>
+      </nav>
+
+      <nav class="tools tools-map" aria-label="Sterowanie mapą">
+        <button id="btn-zoom-in" title="Przybliż (+)" aria-label="Przybliż">+</button>
+        <button id="btn-zoom-out" title="Oddal (−)" aria-label="Oddal">−</button>
+        <button id="btn-rotate-left" title="Obróć w lewo (Q)" aria-label="Obróć w lewo">↶</button>
+        <button id="btn-rotate-right" title="Obróć w prawo (E)" aria-label="Obróć w prawo">↷</button>
+        <button id="btn-reset" title="Wróć do centrum" aria-label="Wróć do centrum">
+          <svg viewBox="0 0 24 24"><path d="M12 3 3 11h2.5v9h5v-6h3v6h5v-9H21z"/></svg>
+        </button>
+      </nav>
+
+      <aside id="places" class="sheet" hidden>
+        <div class="sheet-head"><div><span class="eyebrow">ODKRYWAJ</span><strong>Miejsca w Mławie</strong></div><button class="close" aria-label="Zamknij miejsca">×</button></div>
+        <p class="sheet-note">Wybierz miejsce, aby zobaczyć je z bliska.</p>
+        <ul id="places-list"></ul>
+      </aside>
+
+      <aside id="panel" class="sheet" hidden>
+        <div class="sheet-head"><div><span class="eyebrow">MAŁA MŁAWA / MIEJSCE</span><strong id="panel-title"></strong></div><button class="close" aria-label="Zamknij szczegóły">×</button></div>
+        <div id="panel-body"></div>
+      </aside>
+
+      <aside id="settings" class="sheet" hidden>
+        <div class="sheet-head"><div><span class="eyebrow">DOPASUJ WIDOK</span><strong>Ustawienia</strong></div><button class="close" aria-label="Zamknij ustawienia">×</button></div>
+        <fieldset>
+          <legend>Pora roku</legend>
+          <div class="segments" aria-label="Pora roku">
+            <button type="button" data-season="summer" aria-pressed="true">Lato</button>
+            <button type="button" data-season="autumn" aria-pressed="false">Jesień</button>
+            <button type="button" data-season="winter" aria-pressed="false">Zima</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Styl obrazu</legend>
+          <div class="segments" aria-label="Styl obrazu">
+            <button type="button" data-pixel="1" aria-pressed="true">Ostry</button>
+            <button type="button" data-pixel="2" aria-pressed="false">Piksel</button>
+            <button type="button" data-pixel="3" aria-pressed="false">Retro</button>
+          </div>
+        </fieldset>
+        <label class="check-row"><input id="show-markers" type="checkbox" checked /> <span>Pokazuj znaczniki miejsc</span></label>
+        <label class="check-row"><input id="show-motion" type="checkbox" checked /> <span>Animowane samochody</span></label>
+        <label class="check-row"><input id="live-time" type="checkbox" /> <span>Czas na żywo dla Mławy</span></label>
+        <label class="check-row"><input id="live-weather" type="checkbox" /> <span>Pogoda na żywo dla Mławy</span></label>
+        <p class="data-status"><span id="weather-status">Po włączeniu dane pobiera</span> <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo ↗</a></p>
+        <p class="sheet-note controls-note">Przeciągnij, aby przesunąć · kółko, aby przybliżyć · prawy przycisk, aby obrócić. Klawiatura: WASD i Q / E.</p>
+        <p id="data-status" class="data-status"></p>
+      </aside>
+
+      <div class="map-hint" aria-hidden="true"><strong>ODKRYJ MŁAWĘ</strong><span>PRZECIĄGNIJ MAPĘ · KÓŁKO / + − ZOOM</span></div>
+      <div class="map-readout" aria-live="off"><span id="coordinates">53.1122°N 20.3833°E</span><span id="zoom-level">ZOOM 1.0</span></div>
+
+      <footer>
+        <span>Created by Ali Ogun</span>
+        <span class="sep">·</span>
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>
+        <span class="sep">·</span>
+        <a href="https://www.gov.pl/web/gugik/dane-egib" target="_blank" rel="noopener">EGiB / powiat mławski, GUGiK</a>
+        <span class="sep">·</span>
+        <a href="https://www.geoportal.gov.pl/pl/dane/inne-dane/modele-3d-budynkow/" target="_blank" rel="noopener">GUGiK 3D: LoD1 2024, LoD2 2017 (dostosowane)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>
+      </footer>
+
+      <dialog id="fox-game" class="fox-game" aria-labelledby="fox-game-title" aria-describedby="fox-game-intro">
+        <div class="fox-frame">
+          <header class="fox-header">
+            <div>
+              <span class="fox-eyebrow">MAŁA MŁAWA <span aria-hidden="true">✦</span> ZIMOWA MINI GRA / DEMO</span>
+              <h2 id="fox-game-title">Droga do liska<span aria-hidden="true"> ✳</span></h2>
+              <p id="fox-game-intro">Przetocz prezent przez zimowe plansze i pomóż uwolnić liska.</p>
+            </div>
+            <button id="fox-close" class="fox-close" type="button" aria-label="Zamknij grę">×</button>
+          </header>
+
+          <div class="fox-layout">
+            <section class="fox-play" aria-label="Plansza i sterowanie">
+              <div class="fox-board-heading">
+                <div><span class="fox-tiny">PLANSZA <span id="fox-level-number">01</span> / ∞</span><strong id="fox-level-name"></strong></div>
+                <div class="fox-moves"><span class="fox-tiny">RUCHY</span><strong id="fox-moves">0</strong></div>
+              </div>
+
+              <div class="fox-board-wrap">
+                <svg id="fox-board" viewBox="0 0 720 510" role="img" aria-label="Izometryczna plansza. Przetocz prezent na pole z łapką."></svg>
+                <div id="fox-result" class="fox-result" hidden>
+                  <div class="fox-result-card">
+                    <span id="fox-result-icon" class="fox-result-icon" aria-hidden="true">✦</span>
+                    <strong id="fox-result-title"></strong>
+                    <p id="fox-result-text"></p>
+                    <div class="fox-result-actions">
+                      <button id="fox-result-primary" type="button"></button>
+                      <button id="fox-result-secondary" type="button"></button>
+                    </div>
+                  </div>
+                </div>
+                <span class="fox-swipe-hint" aria-hidden="true">PRZESUŃ PALCEM, ABY ZAGRAĆ</span>
+              </div>
+
+              <div class="fox-toolbar">
+                <div>
+                  <span class="fox-tiny">STEROWANIE <span class="fox-keys">· STRZAŁKI / WASD</span></span>
+                  <div class="fox-pad" role="group" aria-label="Kierunki ruchu">
+                    <button type="button" data-fox-direction="up" aria-label="Ruch w lewy górny róg, strzałka w górę"><span>↖</span><small>↑</small></button>
+                    <button type="button" data-fox-direction="right" aria-label="Ruch w prawy górny róg, strzałka w prawo"><span>↗</span><small>→</small></button>
+                    <button type="button" data-fox-direction="left" aria-label="Ruch w lewy dolny róg, strzałka w lewo"><span>↙</span><small>←</small></button>
+                    <button type="button" data-fox-direction="down" aria-label="Ruch w prawy dolny róg, strzałka w dół"><span>↘</span><small>↓</small></button>
+                  </div>
+                </div>
+                <div class="fox-actions">
+                  <span id="fox-best" class="fox-best"></span>
+                  <div><button id="fox-undo" type="button">↶ Cofnij</button><button id="fox-restart" type="button">↻ Od nowa</button></div>
+                </div>
+              </div>
+              <p id="fox-status" class="fox-sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+            </section>
+
+            <aside class="fox-story">
+              <div class="fox-portrait" aria-hidden="true">
+                <svg viewBox="0 0 220 170">
+                  <circle cx="110" cy="82" r="69" fill="#d6e5d7"/>
+                  <path d="M41 122q26-25 69-22t69 22v31H41z" fill="#eff3e5"/>
+                  <path d="m45 94 13-27 13 27h-7v12H52V94zm112-7 12-27 12 27h-6v15h-12V87z" fill="#8bac9d"/>
+                  <path d="M144 116q39-28 41 1-7 24-37 23z" fill="#cd7249"/>
+                  <path d="M172 103q13 4 12 14-1 6-7 11-2-13-13-17z" fill="#f7ead6"/>
+                  <ellipse cx="109" cy="124" rx="41" ry="27" fill="#d9814d"/>
+                  <path d="m62 44 31 12 17-5 17 5 31-12-8 43q-5 28-40 35-35-7-40-35z" fill="#d9814d"/>
+                  <path d="m69 52 16 9-12 9zm82 0-16 9 12 9z" fill="#f2af79"/>
+                  <path d="M70 87q13 5 22 17l18-13 18 13q9-12 22-17-2 28-40 35-38-7-40-35z" fill="#f9ebd7"/>
+                  <path d="M86 84q4 5 8 0m32 0q4 5 8 0" fill="none" stroke="#34453f" stroke-width="3" stroke-linecap="round"/>
+                  <path d="m104 98 6 5 6-5-6-4z" fill="#34453f"/>
+                  <path d="M77 119q32 12 67 0l-2 12q-30 12-62-1z" fill="#b84e3c"/>
+                  <path d="m124 128 9 2 1 19-11-3z" fill="#b84e3c"/>
+                  <path d="M34 44h8m-4-4v8m141-23h8m-4-4v8" stroke="#d7a85d" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="fox-story-copy">
+                <span class="fox-story-kicker">MAŁY BOHATER, WIELKA MISJA</span>
+                <h3 id="fox-story-title">Lisek czeka na pomoc!</h3>
+                <p id="fox-story-text">Leśni przyjaciele próbują otworzyć klatkę. Ukończ 20 kolejnych plansz, aby im pomóc i uwolnić liska!</p>
+                <ol class="fox-howto">
+                  <li>Przetaczaj prezent i uważaj na krawędzie.</li>
+                  <li>Postaw go <strong>pionowo</strong> na polu z łapką.</li>
+                </ol>
+              </div>
+              <div class="fox-rescue">
+                <div class="fox-rescue-heading"><span>TWOJA MISJA RATUNKOWA</span><strong id="fox-rescue-percent">0%</strong></div>
+                <div id="fox-rescue-progress" class="fox-meter" role="progressbar" aria-label="Twój postęp w ratowaniu liska" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 procent, ukończono 0 z 20 plansz"><span id="fox-rescue-progress-fill"></span></div>
+                <p id="fox-rescue-count">0 / 20 plansz do uwolnienia</p>
+              </div>
+              <div class="fox-progress">
+                <div class="fox-progress-heading"><span>UKOŃCZONE PLANSZE</span><strong id="fox-progress-count">0</strong></div>
+                <div class="fox-level-navigation">
+                  <button id="fox-levels-previous" type="button" aria-label="Poprzednie plansze">‹</button>
+                  <div id="fox-levels" class="fox-levels" role="group" aria-label="Wybierz planszę"></div>
+                  <button id="fox-levels-next" type="button" aria-label="Następne plansze">›</button>
+                </div>
+                <p id="fox-storage-note">Bez konta. Postęp zostaje tylko w tej przeglądarce.</p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </dialog>
+
+      <div id="loading" role="status"><div class="spinner"></div><strong>MAŁA MŁAWA</strong><span>Wczytujemy trójwymiarową Mławę…</span></div>
+      <pre id="debug" hidden></pre>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

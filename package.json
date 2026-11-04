@@ -1,0 +1,38 @@
+{
+  "name": "mala-mlawa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mała Mława — Cała Mława. Tylko trochę mniejsza.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "data:fetch": "tsx scripts/fetch-osm.ts",
+    "data:fetch:egib": "tsx scripts/fetch-egib.ts",
+    "data:build": "tsx scripts/build-city.ts",
+    "data:lod1": "tsx scripts/build-lod1.ts",
+    "data:lod2": "tsx scripts/build-lod2.ts",
+    "data": "npm run data:fetch && npm run data:fetch:egib && npm run data:build && npm run data:lod1 && npm run data:lod2",
+    "data:refresh": "npm run data:fetch -- --force && npm run data:fetch:egib -- --force && npm run data:build && npm run data:lod1 && npm run data:lod2",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "earcut": "^3.2.4",
+    "osmtogeojson": "^2.2.12",
+    "polygon-clipping": "^0.15.7",
+    "suncalc": "^2.1.1",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.0.0",
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.186.0",
+    "proj4": "^2.22.0",
+    "saxes": "^6.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  }
+}
