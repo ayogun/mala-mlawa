@@ -17,7 +17,20 @@ Drag to pan, scroll or use +/− to zoom, and right-drag or use Q/E to rotate. W
 
 The “Uratuj liska” button opens an original rolling-block puzzle. The first five levels are handcrafted; from level six onward, new numbered levels are generated locally and checked for a winning path. Use the on-screen arrows, a swipe, or the arrow/WASD keys, and stand the present upright on the paw. Each win reveals the next level; use the arrows beside the level numbers to revisit unlocked levels. The “Zobacz liska w lesie” button flies to the animated rescue scene in the northern forest; the scene also opens the game.
 
-The rescue meter is a personal, account-free goal: finishing the first 20 consecutive levels opens the cage, and further levels remain available. Replaying a level does not add progress. Completed levels and personal bests are saved only in that browser when local storage is available, including progress from the original five-level version. The prototype does not have a shared city-wide counter or prize system; those would require a backend.
+Completed levels and personal bests are saved in the browser, including progress from the original five-level version. When Supabase is configured, opening the game also starts an anonymous session and synchronizes those results. Existing saves on that origin are imported. The shared rescue meter counts each player's completion of each level once; replaying it can improve a personal best but does not increase the shared total. The initial goal is 1,000 completions and can be changed in the database. The cage opens for everyone when that goal is reached.
+
+No registration is needed to play. Anonymous sessions and local saves belong to the current browser and site origin: changing devices, clearing site data, or switching between localhost, GitHub Pages and a future custom domain does not automatically transfer them. Facebook login, account recovery, a public leaderboard and prizes are not implemented. If the connection or database setup is unavailable, the game keeps working locally and retries syncing; the shared meter is marked unavailable or shows its last known result.
+
+## Shared rescue setup
+
+1. In a dedicated Supabase project, enable **Authentication → Sign In / Providers → Anonymous Sign-Ins**. Anonymous users use the `authenticated` database role, so review any existing policies in a shared project before enabling it.
+2. Open **SQL Editor**, paste and run [`supabase/fox-rescue.sql`](supabase/fox-rescue.sql). It creates the tables and restricted functions without deleting existing results. Each player's results are private to their own anonymous session; only the aggregate rescue progress is public.
+3. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from the project's **Connect** dialog. Restart the Vite development server after changing them.
+4. For GitHub Pages, set repository Actions variables with those same names and redeploy. The publishable key is intentionally included in the website; never use a Supabase secret or `service_role` key in a `VITE_` variable.
+
+To change the initial community goal later, run `update public.fox_rescue_settings set goal = 1000 where id = true;` in the SQL Editor with the desired value. The shared total counts stored results, so deleting anonymous users also removes their contributions. Cloud synchronization supports the first 1,000,000 levels; later levels remain playable locally.
+
+This is a non-competitive prototype: results and imported local saves are reported by the browser and can be manipulated. Before using a leaderboard or awarding vouchers, add server-side solution verification, abuse controls and a privacy notice. Supabase recommends CAPTCHA for anonymous sign-ins; the current client does not yet collect a CAPTCHA token, so enabling CAPTCHA before adding that support would prevent new guest sessions.
 
 ## Publishing
 

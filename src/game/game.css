@@ -14,6 +14,8 @@
 .fox-invite-progress-heading, .fox-rescue-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 9px; font-weight: 800; letter-spacing: .06em; }
 .fox-invite-progress-heading { color: #b7cfc2; }
 .fox-invite-progress-heading strong { color: #f2c276; font-size: 11px; }
+.fox-invite-status { display: block; margin-top: 4px; color: #b7cfc2; font-size: 8px; line-height: 1.3; }
+.fox-invite-status:empty { display: none; }
 .fox-meter { height: 7px; margin-top: 5px; overflow: hidden; background: #a7bdb0; }
 .fox-meter > span { display: block; width: 0; height: 100%; background: #c97b4c; transition: width .4s ease; }
 .fox-invite .fox-meter { background: #3b5d58; }

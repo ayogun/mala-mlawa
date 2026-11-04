@@ -1,14 +1,17 @@
 import { Quaternion } from 'three';
 import { BoardRenderer, turnFor, turnPivot } from './board';
+import { createFoxCloud, type FoxCloud, type RescueProgress } from './foxCloud';
 import { getLevel, getLevelName } from './generatedLevels';
 import { isGoal, isSupported, roll, startingPosition, type BlockPosition, type Direction } from './logic';
 
 const STORAGE_KEY = 'mala-mlawa-fox-game-v2';
 const LEGACY_STORAGE_KEY = 'mala-mlawa-fox-game-v1';
 const LEVELS_PER_PAGE = 5;
-const RESCUE_GOAL = 20;
+const RESCUE_REFRESH_INTERVAL = 60_000;
 
 type Phase = 'playing' | 'rolling' | 'falling' | 'failed' | 'won';
+type RescueStatus = 'loading' | 'ready' | 'offline';
+type SyncStatus = 'local' | 'syncing' | 'synced' | 'offline';
 
 interface Snapshot {
   position: BlockPosition;
@@ -53,6 +56,14 @@ export class FoxGame {
   private history: Snapshot[] = [];
   private best = new Map<number, number>();
   private storageAvailable = true;
+  private cloud: FoxCloud | null = null;
+  private rescueProgress: RescueProgress | null = null;
+  private rescueStatus: RescueStatus = 'loading';
+  private syncStatus: SyncStatus = 'local';
+  private syncStarted = false;
+  private syncRequested = false;
+  private syncing = false;
+  private rescueRequest = 0;
   private animationFrame: number | null = null;
   private pointerStart: PointerStart | null = null;
 
@@ -88,8 +99,11 @@ export class FoxGame {
     window.addEventListener('storage', (event) => {
       if ((event.key !== STORAGE_KEY && event.key !== LEGACY_STORAGE_KEY) || !event.newValue) return;
       this.readSavedProgress(event.newValue);
+      this.requestSync();
       this.updateHud();
     });
+
+    void this.connectCloud();
   }
 
   get isOpen(): boolean {
@@ -101,6 +115,9 @@ export class FoxGame {
     this.lastOpener = opener;
     this.dialog.showModal();
     this.closeButton.focus();
+    this.syncStarted = true;
+    this.requestSync();
+    void this.refreshRescue();
   }
 
   private onClose(): void {
@@ -210,24 +227,17 @@ export class FoxGame {
   }
 
   private completeLevel(): void {
-    const completedBefore = this.completedLevels();
     const previousBest = this.best.get(this.levelIndex);
     if (previousBest === undefined || this.moves < previousBest) {
       this.best.set(this.levelIndex, this.moves);
       this.saveProgress();
     }
-    const completedAfter = this.completedLevels();
-    const justRescued = completedBefore < RESCUE_GOAL && completedAfter >= RESCUE_GOAL;
-    const progress = Math.round(Math.min(completedAfter, RESCUE_GOAL) / RESCUE_GOAL * 100);
+    this.requestSync();
     this.resultIcon.textContent = '✦';
-    this.resultTitle.textContent = justRescued ? 'Lisek jest wolny!' : 'Udało się!';
-    this.resultText.textContent = justRescued
-      ? 'Ukończono misję ratunkową! Lisek i jego przyjaciele dziękują za pomoc. Możesz grać dalej.'
-      : previousBest !== undefined
-        ? `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Powtórki nie zwiększają postępu misji.`
-        : completedAfter >= RESCUE_GOAL
-          ? `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Zimowa przygoda trwa dalej!`
-          : `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Twój postęp ratowania liska: ${progress}%.`;
+    this.resultTitle.textContent = 'Udało się!';
+    this.resultText.textContent = previousBest !== undefined
+      ? `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Powtórki nie zwiększają wspólnego postępu.`
+      : `Plansza ukończona w ${this.moves} ${this.moves === 1 ? 'ruchu' : 'ruchach'}. Po synchronizacji pomoże w ratowaniu liska!`;
 
     this.resultPrimary.textContent = 'Następna plansza';
     this.resultSecondary.textContent = 'Powtórz planszę';
@@ -272,42 +282,137 @@ export class FoxGame {
     return completed;
   }
 
+  private async connectCloud(): Promise<void> {
+    this.cloud = await createFoxCloud();
+    if (!this.cloud) {
+      this.rescueStatus = 'offline';
+      this.updateHud();
+      return;
+    }
+    void this.refreshRescue();
+    if (this.syncStarted) this.requestSync();
+    window.addEventListener('online', () => this.refreshOnlineState());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.refreshOnlineState();
+    });
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') this.refreshOnlineState();
+    }, RESCUE_REFRESH_INTERVAL);
+  }
+
+  private refreshOnlineState(): void {
+    void this.refreshRescue();
+    if (this.syncStatus === 'offline' || this.syncRequested) this.requestSync();
+  }
+
+  private async refreshRescue(): Promise<void> {
+    if (!this.cloud) return;
+    const request = ++this.rescueRequest;
+    try {
+      const progress = await this.cloud.rescueProgress();
+      if (request !== this.rescueRequest) return;
+      const previous = this.rescueProgress;
+      this.rescueProgress = progress;
+      this.rescueStatus = 'ready';
+      if (previous && previous.totalCompleted < previous.goal && progress.totalCompleted >= progress.goal) {
+        if (this.phase === 'won') {
+          this.resultTitle.textContent = 'Lisek jest wolny!';
+          this.resultText.textContent = 'Razem udało nam się uwolnić liska. Możesz grać dalej!';
+        }
+        this.announce('Razem udało nam się uwolnić liska!');
+      }
+    } catch (error) {
+      if (request !== this.rescueRequest) return;
+      this.rescueStatus = 'offline';
+      console.warn('Fox rescue progress is unavailable:', error);
+    }
+    this.updateHud();
+  }
+
+  private requestSync(): void {
+    if (!this.cloud || !this.syncStarted) return;
+    this.syncRequested = true;
+    if (this.syncing) return;
+    this.syncing = true;
+    void this.syncProgress();
+  }
+
+  private async syncProgress(): Promise<void> {
+    const cloud = this.cloud;
+    if (!cloud) return;
+    this.syncStatus = 'syncing';
+    this.updateHud();
+    try {
+      await cloud.signIn();
+      while (this.syncRequested) {
+        this.syncRequested = false;
+        const saved = await cloud.playerResults();
+        const previouslyCompleted = this.completedLevels();
+        saved.forEach((moves, index) => {
+          const previousBest = this.best.get(index);
+          if (previousBest === undefined || moves < previousBest) this.best.set(index, moves);
+        });
+        this.saveProgress();
+        const completed = this.completedLevels();
+        if (completed > previouslyCompleted && this.levelIndex === previouslyCompleted
+          && this.phase === 'playing' && this.moves === 0) this.startLevel(completed);
+        await cloud.recordResults(this.best, saved, completed);
+        void this.refreshRescue();
+      }
+      this.syncStatus = 'synced';
+    } catch (error) {
+      this.syncStatus = 'offline';
+      console.warn('Fox progress sync is unavailable:', error);
+    } finally {
+      this.syncing = false;
+      this.updateHud();
+    }
+  }
+
   private updateHud(): void {
     const completed = this.completedLevels();
-    const rescueCompleted = Math.min(completed, RESCUE_GOAL);
-    const progress = Math.round(rescueCompleted / RESCUE_GOAL * 100);
-    const rescued = rescueCompleted === RESCUE_GOAL;
-    const progressText = `${progress} procent, ukończono ${rescueCompleted} z ${RESCUE_GOAL} plansz`;
+    const rescue = this.rescueProgress;
+    const progress = rescue ? Math.min(100, Math.floor(rescue.totalCompleted / rescue.goal * 100)) : null;
+    const rescued = rescue !== null && rescue.totalCompleted >= rescue.goal;
+    const progressText = rescue
+      ? `${progress} procent, wspólnie ukończono ${rescue.totalCompleted} z ${rescue.goal} plansz${this.rescueStatus === 'offline' ? ', ostatni znany wynik' : ''}`
+      : this.rescueStatus === 'loading' ? 'Wczytywanie wspólnego postępu' : 'Wspólny postęp jest niedostępny';
     element('fox-level-number').textContent = String(this.levelIndex + 1).padStart(2, '0');
     element('fox-level-name').textContent = this.level.name;
     element('fox-moves').textContent = String(this.moves);
     const record = this.best.get(this.levelIndex);
     element('fox-best').textContent = record === undefined ? 'GRAJ ILE CHCESZ' : `Twój rekord: ${record} ruchów`;
     element('fox-progress-count').textContent = String(completed);
-    element('fox-map-percent').textContent = `${progress}%`;
-    element('fox-rescue-percent').textContent = `${progress}%`;
-    element('fox-map-progress-fill').style.width = `${progress}%`;
-    element('fox-rescue-progress-fill').style.width = `${progress}%`;
+    element('fox-map-percent').textContent = progress === null ? '—' : `${progress}%`;
+    element('fox-rescue-percent').textContent = progress === null ? '—' : `${progress}%`;
+    element('fox-map-progress-fill').style.width = `${progress ?? 0}%`;
+    element('fox-rescue-progress-fill').style.width = `${progress ?? 0}%`;
+    element('fox-map-status').textContent = this.rescueStatus === 'loading' ? 'Łączenie z misją…'
+      : this.rescueStatus === 'offline' ? rescue ? 'Ostatni znany wynik' : 'Wspólny postęp niedostępny' : '';
     for (const id of ['fox-map-progress', 'fox-rescue-progress']) {
-      element(id).setAttribute('aria-valuenow', String(progress));
+      if (progress === null) element(id).removeAttribute('aria-valuenow');
+      else element(id).setAttribute('aria-valuenow', String(progress));
       element(id).setAttribute('aria-valuetext', progressText);
     }
-    element('fox-rescue-count').textContent = rescued
-      ? `${RESCUE_GOAL} / ${RESCUE_GOAL} plansz — lisek uwolniony!`
-      : `${rescueCompleted} / ${RESCUE_GOAL} plansz do uwolnienia`;
+    element('fox-rescue-count').textContent = rescue
+      ? `${rescue.totalCompleted.toLocaleString('pl-PL')} / ${rescue.goal.toLocaleString('pl-PL')} plansz${rescued ? ' — lisek uwolniony!' : ''}${this.rescueStatus === 'offline' ? ' (ostatni wynik)' : ''}`
+      : this.rescueStatus === 'loading' ? 'Łączymy z misją ratunkową…' : 'Wspólny postęp jest niedostępny. Możesz grać dalej.';
     element('fox-story-title').textContent = rescued ? 'Lisek jest wolny!' : 'Lisek czeka na pomoc!';
     element('fox-story-text').textContent = rescued
-      ? 'Dzięki Tobie leśni przyjaciele otworzyli klatkę. Graj dalej i odkrywaj kolejne plansze!'
-      : `Leśni przyjaciele próbują otworzyć klatkę. Ukończ ${RESCUE_GOAL} kolejnych plansz, aby im pomóc i uwolnić liska!`;
+      ? 'Razem udało nam się otworzyć klatkę! Graj dalej i odkrywaj kolejne plansze.'
+      : 'Leśni przyjaciele próbują otworzyć klatkę. Każda nowa plansza przybliża całą Mławę do uratowania liska!';
     element('fox-invite-title').textContent = rescued ? 'Lisek jest wolny ↗' : 'Uratuj liska ↗';
     element('fox-scene-label').textContent = rescued ? 'LISEK JEST WOLNY ↗' : 'POMÓŻ LISKOWI ↗';
     this.mapScene.classList.toggle('is-rescued', rescued);
     this.mapScene.setAttribute('aria-label', rescued
       ? 'Lisek został uwolniony. Otwórz grę i graj dalej.'
-      : `Lisek czeka w leśnej klatce. Twój postęp ratowania: ${progress} procent. Otwórz grę.`);
-    element('fox-storage-note').textContent = this.storageAvailable
-      ? 'Bez konta. Postęp zostaje tylko w tej przeglądarce.'
-      : 'Bez konta. Postęp jest dostępny tylko w tej sesji.';
+      : `Lisek czeka w leśnej klatce. ${progressText}. Otwórz grę.`);
+    element('fox-storage-note').textContent = !this.storageAvailable
+      ? 'Bez rejestracji. Postęp jest dostępny tylko w tej sesji.'
+      : this.syncStatus === 'synced' ? 'Bez rejestracji. Postęp zapisany tutaj i zsynchronizowany anonimowo.'
+        : this.syncStatus === 'syncing' ? 'Bez rejestracji. Postęp zapisany tutaj; synchronizacja w toku…'
+          : this.syncStatus === 'offline' ? 'Postęp zapisany tutaj. Synchronizacja jest chwilowo niedostępna.'
+            : 'Bez rejestracji. Postęp jest zapisywany w tej przeglądarce.';
     this.undoButton.disabled = this.history.length === 0 || this.phase === 'rolling' || this.phase === 'falling' || this.phase === 'won';
     this.previousLevelsButton.disabled = this.levelPageStart === 0;
     this.nextLevelsButton.disabled = this.levelPageStart + LEVELS_PER_PAGE > completed;
