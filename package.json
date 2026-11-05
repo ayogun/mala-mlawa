@@ -13,6 +13,7 @@
     "data:build": "tsx scripts/build-city.ts",
     "data:lod1": "tsx scripts/build-lod1.ts",
     "data:lod2": "tsx scripts/build-lod2.ts",
+    "data:businesses": "tsx scripts/update-businesses.ts",
     "data": "npm run data:fetch && npm run data:fetch:egib && npm run data:build && npm run data:lod1 && npm run data:lod2",
     "data:refresh": "npm run data:fetch -- --force && npm run data:fetch:egib -- --force && npm run data:build && npm run data:lod1 && npm run data:lod2",
     "test": "vitest run"

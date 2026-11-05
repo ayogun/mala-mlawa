@@ -1,6 +1,8 @@
 import { ADVENT_OFFERS, ADVENT_YEAR, type AdventOffer } from './offers';
 import { h } from '../ui/dom';
 
+export const ADVENT_ENABLED = false;
+
 export interface WarsawDate {
   year: number;
   month: number;

@@ -1,0 +1,47 @@
+#business-map-layer { position: absolute; z-index: 1; inset: 0; overflow: hidden; pointer-events: none; }
+.business-toggle {
+  position: absolute; z-index: 3; top: calc(64px + var(--safe-t)); right: 12px;
+  display: flex; min-height: 40px; align-items: center; gap: 7px; padding: 6px 10px;
+  border: 2px solid #080d15; color: #e7f2e9; background: #245c59;
+  box-shadow: inset 0 0 0 1px #7cb2a2, 3px 4px 0 rgba(5, 9, 15, .35); font-size: 10px; font-weight: 800;
+}
+.business-toggle svg { width: 20px; height: 20px; fill: currentColor; }
+.business-toggle:hover, .business-toggle:focus-visible { background: #32776f; }
+.business-toggle[aria-pressed='false'] { color: #a7b2b4; background: #283544; box-shadow: inset 0 0 0 1px #536175, 3px 4px 0 rgba(5, 9, 15, .35); }
+.advent-enabled .business-toggle { top: calc(116px + var(--safe-t)); }
+
+.business-map-marker {
+  position: absolute; top: 0; left: 0; display: grid; width: 42px; height: 42px; place-items: center;
+  padding: 0; border: 0; background: none; pointer-events: auto; will-change: transform;
+}
+.business-map-icon {
+  display: grid; width: 27px; height: 27px; place-items: center; border: 2px solid #153b3a;
+  color: #f3f5e7; background: #39877d; box-shadow: inset 0 0 0 1px #9dc9b6, 2px 2px 0 rgba(0, 0, 0, .35);
+}
+.business-map-icon svg { width: 19px; height: 19px; fill: currentColor; }
+.business-map-count {
+  position: absolute; top: 1px; right: 1px; min-width: 17px; height: 17px; padding: 2px 3px;
+  border: 1px solid #123b38; color: #153b3a; background: #d7edcf; font-size: 10px; font-weight: 800; line-height: 1;
+}
+.business-map-label {
+  position: absolute; top: 37px; left: 50%; padding: 5px 7px; border: 2px solid #102f30;
+  color: #e7f4e7; background: #1d4947; box-shadow: 2px 2px 0 rgba(0, 0, 0, .3);
+  font-size: 10px; font-weight: 700; white-space: nowrap; opacity: 0; transform: translate(-50%, -3px);
+  pointer-events: none;
+}
+.business-map-marker:hover .business-map-label, .business-map-marker:focus-visible .business-map-label { opacity: 1; transform: translate(-50%, 0); }
+.business-map-marker:hover .business-map-icon, .business-map-marker:focus-visible .business-map-icon { background: #23665f; }
+.business-badge { color: #143937; background: #a9d8bd; }
+.business-source-note { color: #aab8b4; font-size: 10px; line-height: 1.5; }
+.business-list { display: grid; gap: 4px; }
+.business-list button {
+  display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 9px;
+  padding: 8px; border: 1px solid #587b72; color: var(--ink); background: #2a4142; text-align: left; font-size: 11px;
+}
+.business-list button:hover { border-color: #b6e0bf; }
+.business-list small { flex: none; max-width: 45%; color: #afc8bd; font-size: 10px; text-align: right; }
+
+@media (max-width: 719px) {
+  .business-toggle { top: calc(60px + var(--safe-t)); min-height: 40px; }
+  .advent-enabled .business-toggle { top: calc(112px + var(--safe-t)); }
+}

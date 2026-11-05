@@ -1,6 +1,7 @@
 import './ui/styles.css';
 import './game/game.css';
 import './advent/advent.css';
+import './businesses/businesses.css';
 import { PCFShadowMap, Scene, WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -22,6 +23,9 @@ import { Markers } from './ui/markers';
 import { UI } from './ui/ui';
 import { FoxGame } from './game/foxGame';
 import { ForestScene, FOX_FOREST_POSITION } from './game/forestScene';
+import { BusinessMarkers } from './businesses/markers';
+import type { Business, BusinessDataset } from './businesses/types';
+import { ADVENT_ENABLED } from './advent/calendar';
 import { AdventMapMarkers } from './advent/mapMarkers';
 import type { AdventOffer } from './advent/offers';
 
@@ -80,14 +84,16 @@ let pixelSize = 1;
 let perf: PerfStats | null = null;
 let weather: Weather | null = null;
 const renderPixelSize = (size: number) => size === 1 ? 1 : Math.max(2, Math.round(size * renderer.getPixelRatio()));
+const businessMarkers = new BusinessMarkers(document.getElementById('business-map-layer')!, (businesses) => selectBusinesses(businesses));
 
 const ui = new UI({
   onClosePanel: () => clearSelection(),
   onPlace: (id) => selectLandmark(id),
+  onBusinesses: (visible) => { businessMarkers.setVisible(visible); invalidate(); },
   onAdventOffer: (offer) => selectAdventOffer(offer),
   onAdventPreview: (preview) => {
     if (!preview && selectedAdvent?.example) clearSelection();
-    adventMarkers.setPreview(preview);
+    adventMarkers?.setPreview(preview);
   },
   onReset: () => { clearSelection(); rig.reset(); },
   onNight: (on) => { dayNight.setNight(on); invalidate(); },
@@ -102,7 +108,7 @@ const ui = new UI({
   },
   onMarkers: (visible) => {
     markers?.setVisible(visible);
-    adventMarkers.setVisible(visible);
+    adventMarkers?.setVisible(visible);
   },
   onMotion: (enabled) => world.setMotion(enabled),
   onLiveTime: (enabled) => {
@@ -134,13 +140,13 @@ let selectedLandmark: ResolvedLandmark | null = null;
 let landmarkHighlighted = false;
 let selectedAdvent: AdventOffer | null = null;
 let selectedAdventBuilding: BuildingRec | undefined;
-const adventMarkers = new AdventMapMarkers(
+const adventMarkers = ADVENT_ENABLED ? new AdventMapMarkers(
   document.getElementById('advent-map-layer')!,
   (offer) => adventRec(offer),
   (offer) => selectAdventOffer(offer),
   invalidate,
-);
-scene.add(adventMarkers.group);
+) : null;
+if (adventMarkers) scene.add(adventMarkers.group);
 
 function buildingCentre(rec: BuildingRec): { x: number; z: number } {
   const r = rec.r[0];
@@ -180,7 +186,7 @@ function clearAdventSelection() {
   if (!selectedAdvent) return;
   selectedAdvent = null;
   selectedAdventBuilding = undefined;
-  adventMarkers.setSelected(null);
+  adventMarkers?.setSelected(null);
 }
 
 function landmarkRec(l: ResolvedLandmark): BuildingRec | undefined {
@@ -204,7 +210,7 @@ function selectLandmark(id: string) {
 }
 
 function selectBuilding(rec: BuildingRec, chunkKey: string, index: number) {
-  const adventOffer = adventMarkers.offerForBuilding(rec);
+  const adventOffer = adventMarkers?.offerForBuilding(rec);
   if (adventOffer) return selectAdventOffer(adventOffer);
   const lm = landmarks.list.find((l) => l.chunkKey === chunkKey && l.buildingIndex === index);
   if (lm) return selectLandmark(lm.lm.id);
@@ -242,9 +248,53 @@ function selectAdventOffer(offer: AdventOffer) {
   const rec = adventRec(offer);
   selectedAdventBuilding = rec;
   highlight.set(rec ?? null);
-  adventMarkers.setSelected(offer);
+  adventMarkers?.setSelected(offer);
   ui.showAdventOffer(offer);
   focus(point.x, point.z, 2.2, true);
+  invalidate();
+}
+
+function selectBusiness(business: Business) {
+  selectedLandmark = null;
+  clearAdventSelection();
+  markers?.setSelected(null);
+  highlight.set(null);
+  ui.showBusiness(business);
+  const point = project(business.latitude, business.longitude);
+  focus(point.x, point.z, 2.2, true);
+  invalidate();
+}
+
+function selectBusinesses(businesses: Business[]) {
+  if (!businesses.length) return;
+  if (businesses.length === 1) return selectBusiness(businesses[0]);
+  selectedLandmark = null;
+  clearAdventSelection();
+  markers?.setSelected(null);
+  highlight.set(null);
+  ui.showBusinessGroup([...businesses].sort((first, second) => first.name.localeCompare(second.name, 'pl')), selectBusiness);
+  invalidate();
+}
+
+async function loadBusinesses() {
+  let businesses: Business[] = [];
+  try {
+    const response = await fetch(`${dataBase}/businesses.json`, { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json() as BusinessDataset;
+    if (!Array.isArray(data.businesses) || !data.businesses.length || !Number.isFinite(Date.parse(data.updated))) throw new Error('Invalid business data');
+    businesses = data.businesses.filter((business) =>
+      business.source === 'osm' && /^(node|way|relation)\/\d+$/.test(business.id)
+      && typeof business.name === 'string' && typeof business.category === 'string'
+      && Number.isFinite(business.latitude) && Number.isFinite(business.longitude));
+    if (!businesses.length) throw new Error('No valid business data');
+    ui.setBusinessDataDate(data.updated);
+  } catch (error) {
+    console.warn('Business map data is unavailable:', error);
+    ui.setBusinessDataDate();
+  }
+  businessMarkers.setBusinesses(businesses);
+  businessMarkers.resolveBuildings(world.chunks.values(), world.manifest.chunkSize);
   invalidate();
 }
 
@@ -269,7 +319,8 @@ function frame(now: number) {
   if (world.pump(8)) {
     need = true;
     shadowDirty = true;
-    adventMarkers.resolveBuildings();
+    adventMarkers?.resolveBuildings();
+    businessMarkers.resolveBuildings(world.chunks.values(), world.manifest.chunkSize);
     if (selectedLandmark && !landmarkHighlighted) {
       const rec = landmarkRec(selectedLandmark);
       if (rec) {
@@ -300,7 +351,8 @@ function frame(now: number) {
   renderer.info.reset();
   composer.render(dt);
   markers?.update(rig);
-  adventMarkers.update(rig);
+  adventMarkers?.update(rig);
+  businessMarkers.update(rig);
   forestScene.update(rig);
   const { lat, lon } = unproject(rig.target.x, rig.target.z);
   ui.setView(lat, lon, rig.zoom);
@@ -341,6 +393,7 @@ async function boot() {
     rig.flyTo(FOX_FOREST_POSITION.x, FOX_FOREST_POSITION.z, 1.25, duration);
   });
   markers = new Markers(document.getElementById('markers')!, landmarks.list, (id) => selectLandmark(id));
+  void loadBusinesses();
   composer = new EffectComposer(renderer);
   pixelPass = new RenderPixelatedPass(renderPixelSize(pixelSize), scene, rig.camera, {
     normalEdgeStrength: 0.12,

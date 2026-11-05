@@ -25,7 +25,17 @@ The optional leaderboard is opened from the game header. A player only appears a
 
 After completing a level, the result screen creates a shareable PNG locally with that run's level and move count. Where the browser and device support sharing image files, **Udostępnij** opens the system share sheet. **Pobierz** also lets the player download the image and attach it to a social-media post. Available sharing destinations depend on the device; publishing is always up to the player.
 
+## Local businesses
+
+The **Lokale** button shows or hides small storefront signs. Nearby signs are grouped into a numbered marker; select it to choose a place. Selecting a business opens its details without highlighting a building. The list includes shops, food, services, healthcare and other mapped places inside the city boundary. An unnamed place is labelled by its category.
+
+Business data is an OpenStreetMap snapshot, not a complete or verified directory: a place can be missing, misplaced, closed or out of date. Hi Girls is also included as a manually added, approximate location; additional manual entries can be edited in [`src/businesses/manual.ts`](src/businesses/manual.ts). No coupon or business participation is implied by a sign.
+
+Run `npm run data:businesses` to fetch a current OpenStreetMap snapshot and regenerate [`public/data/businesses.json`](public/data/businesses.json). The script avoids replicas more than 14 days old and leaves the published data unchanged if the refresh fails. `npm run data:businesses -- --cached` rebuilds from the existing local cache without downloading, and `OVERPASS_URL` can select an Overpass endpoint. The snapshot date is shown in business details.
+
 ## Advent calendar
+
+The calendar is temporarily disabled, including its map highlights. Its existing offers and interface remain in the project; set `ADVENT_ENABLED` to `true` in [`src/advent/calendar.ts`](src/advent/calendar.ts) to bring it back after reviewing the offers.
 
 The calendar contains 24 days for December 2026. Hi Girls is highlighted in gold on 1, 8, 15 and 22 December; the other days feature local food businesses. **All discounts are non-redeemable examples, including the Hi Girls 30% example. The other businesses have not been confirmed as participants.** Names, addresses and approximate map pins must be checked with each business before publication. Select **Zobacz przykładowe dni** to preview the demo days immediately; a clearly labelled example also appears on the map. Confirmed future offers remain locked even in preview mode.
 
