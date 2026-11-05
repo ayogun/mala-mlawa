@@ -1,5 +1,4 @@
 import type { BuildingRec, Manifest } from '../data/types';
-import type { Business } from '../businesses/types';
 import type { ResolvedLandmark } from '../city/landmarksIndex';
 import type { Season } from '../rendering/seasons';
 import { ADVENT_ENABLED, AdventCalendar, offerExpired } from '../advent/calendar';
@@ -10,7 +9,6 @@ import { HEIGHT_SOURCE, KIND_LABEL, functionLabel } from './labels';
 export interface UIHandlers {
   onClosePanel(): void;
   onPlace(id: string): void;
-  onBusinesses(visible: boolean): void;
   onAdventOffer(offer: AdventOffer): void;
   onAdventPreview(preview: boolean): void;
   onReset(): void;
@@ -32,7 +30,6 @@ export class UI {
   private places = $('places');
   private settings = $('settings');
   private placesBtn = $<HTMLButtonElement>('btn-places');
-  private businessesBtn = $<HTMLButtonElement>('btn-businesses');
   private settingsBtn = $<HTMLButtonElement>('btn-settings');
   private nightBtn = $<HTMLButtonElement>('btn-night');
   private liveTime = $<HTMLInputElement>('live-time');
@@ -40,7 +37,6 @@ export class UI {
   private advent: AdventCalendar | null = null;
   private currentAdventOffer: AdventOffer | null = null;
   private currentAdventExpired = false;
-  private businessUpdated = '';
   private night = false;
 
   constructor(private hd: UIHandlers) {
@@ -59,11 +55,6 @@ export class UI {
     }
     $('btn-reset').onclick = () => hd.onReset();
     $('btn-advent').onclick = () => this.toggleAdvent();
-    this.businessesBtn.onclick = () => {
-      const visible = this.businessesBtn.getAttribute('aria-pressed') !== 'true';
-      this.businessesBtn.setAttribute('aria-pressed', String(visible));
-      hd.onBusinesses(visible);
-    };
     this.placesBtn.onclick = () => this.togglePlaces();
     this.settingsBtn.onclick = () => this.toggleSettings();
     this.nightBtn.onclick = () => this.setNight(!this.night, true);
@@ -216,46 +207,6 @@ export class UI {
     if (l.lm.description) body.push(h('p', { text: l.lm.description }));
     if (rec) body.push(this.facts(rec), this.sourceLink(rec));
     this.open(l.lm.name, body);
-  }
-
-  setBusinessDataDate(updated?: string) {
-    this.businessUpdated = updated && Number.isFinite(Date.parse(updated))
-      ? new Intl.DateTimeFormat('pl-PL', { dateStyle: 'short', timeZone: 'Europe/Warsaw' }).format(new Date(updated))
-      : '';
-    const label = updated ? 'Pokaż lub ukryj lokale' : 'Dane OpenStreetMap są niedostępne — widoczne są tylko wpisy ręczne';
-    this.businessesBtn.title = label;
-    this.businessesBtn.setAttribute('aria-label', label);
-  }
-
-  showBusiness(business: Business) {
-    const body: Node[] = [h('span', { class: 'badge business-badge', text: business.category })];
-    if (!business.named) body.push(h('p', { text: 'Nazwa tego miejsca nie została podana w OpenStreetMap.' }));
-    if (business.address) body.push(h('p', { text: `📍 ${business.address}` }));
-    if (business.source === 'osm') {
-      const date = this.businessUpdated ? ` (${this.businessUpdated})` : '';
-      body.push(h('p', { class: 'business-source-note', text: `Dane OpenStreetMap${date} mogą być niekompletne lub nieaktualne.` }));
-      if (/^(node|way|relation)\/\d+$/.test(business.id)) {
-        body.push(h('p', {}, h('a', { href: `https://www.openstreetmap.org/${business.id}`, text: 'Zobacz w OpenStreetMap ↗' })));
-      }
-    } else {
-      body.push(h('p', { class: 'business-source-note', text: 'Wpis dodany ręcznie. Położenie jest orientacyjne.' }));
-    }
-    this.open(business.name, body, 'MAŁA MŁAWA / LOKAL');
-    $('panel-title').focus({ preventScroll: true });
-  }
-
-  showBusinessGroup(businesses: Business[], onPick: (business: Business) => void) {
-    const list = h('div', { class: 'business-list' });
-    for (const business of businesses) {
-      const button = h('button', {},
-        h('span', { text: business.name }),
-        h('small', { text: business.named ? business.category : 'Nazwa nieznana' }));
-      button.type = 'button';
-      button.onclick = () => onPick(business);
-      list.append(button);
-    }
-    this.open('Lokale w pobliżu', [h('p', { class: 'sheet-note', text: 'Wybierz miejsce, aby zobaczyć szczegóły.' }), list], 'MAŁA MŁAWA / LOKALE');
-    $('panel-title').focus({ preventScroll: true });
   }
 
   showAdventOffer(offer: AdventOffer) {

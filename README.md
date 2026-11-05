@@ -27,11 +27,11 @@ After completing a level, the result screen creates a shareable PNG locally with
 
 ## Local businesses
 
-The **Lokale** button shows or hides small storefront signs. Nearby signs are grouped into a numbered marker; select it to choose a place. Selecting a business opens its details without highlighting a building. The list includes shops, food, services, healthcare and other mapped places inside the city boundary. An unnamed place is labelled by its category.
+Business signs are no longer displayed on the map. The previous overlay, data snapshot and refresh script are retained for possible future use.
 
-Business data is an OpenStreetMap snapshot, not a complete or verified directory: a place can be missing, misplaced, closed or out of date. Hi Girls is also included as a manually added, approximate location; additional manual entries can be edited in [`src/businesses/manual.ts`](src/businesses/manual.ts). No coupon or business participation is implied by a sign.
+Business data is an OpenStreetMap snapshot, not a complete or verified directory: a place can be missing, misplaced, closed or out of date. Hi Girls is also included as a manually added, approximate location; additional manual entries can be edited in [`src/businesses/manual.ts`](src/businesses/manual.ts).
 
-Run `npm run data:businesses` to fetch a current OpenStreetMap snapshot and regenerate [`public/data/businesses.json`](public/data/businesses.json). The script avoids replicas more than 14 days old and leaves the published data unchanged if the refresh fails. `npm run data:businesses -- --cached` rebuilds from the existing local cache without downloading, and `OVERPASS_URL` can select an Overpass endpoint. The snapshot date is shown in business details.
+Run `npm run data:businesses` to fetch a current OpenStreetMap snapshot and regenerate [`public/data/businesses.json`](public/data/businesses.json). The script avoids replicas more than 14 days old and leaves the published data unchanged if the refresh fails. `npm run data:businesses -- --cached` rebuilds from the existing local cache without downloading, and `OVERPASS_URL` can select an Overpass endpoint.
 
 ## Advent calendar
 
